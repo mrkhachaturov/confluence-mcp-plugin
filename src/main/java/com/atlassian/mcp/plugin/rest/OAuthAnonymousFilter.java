@@ -1,0 +1,105 @@
+package com.atlassian.mcp.plugin.rest;
+
+import com.atlassian.annotations.security.UnrestrictedAccess;
+import com.atlassian.mcp.plugin.config.McpPluginConfig;
+import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.sal.api.component.ComponentLocator;
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * Filter with location="before-login" that:
+ * 1. Passes through /plugins/servlet/mcp-oauth/* requests (handled by OAuthServlet)
+ * 2. Directly serves /.well-known/oauth-* responses (can't use servlets at root)
+ * 3. Redirects /rest/mcp/1.0 → /rest/mcp/1.0/ (JAX-RS needs trailing slash)
+ */
+@UnrestrictedAccess
+public class OAuthAnonymousFilter implements Filter {
+
+    public OAuthAnonymousFilter() {
+    }
+
+    @Override
+    public void init(FilterConfig filterConfig) {
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        HttpServletRequest req = (HttpServletRequest) request;
+        HttpServletResponse resp = (HttpServletResponse) response;
+        String uri = req.getRequestURI();
+
+        // Handle /.well-known/* directly — servlets can't serve at root
+        if (uri.contains("/.well-known/oauth-")) {
+            handleWellKnown(uri, resp);
+            return;
+        }
+
+        // Redirect /rest/mcp/1.0 → /rest/mcp/1.0/ (Claude sends without trailing slash;
+        // without this, Confluence's login filter intercepts before JAX-RS can match)
+        if (uri.endsWith("/rest/mcp/1.0")) {
+            String query = req.getQueryString();
+            String target = uri + "/" + (query != null ? "?" + query : "");
+            resp.setStatus(307); // preserve method (POST)
+            resp.setHeader("Location", target);
+            return;
+        }
+
+        // Everything else (mcp-oauth servlet) — pass through
+        chain.doFilter(request, response);
+    }
+
+    private void handleWellKnown(String uri, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json");
+
+        String baseUrl = getBaseUrl();
+        String oauthBase = baseUrl + "/plugins/servlet/mcp-oauth";
+
+        if (uri.contains("oauth-protected-resource")) {
+            resp.getWriter().write("{\"resource\":\"" + baseUrl + "/rest/mcp/1.0/\","
+                    + "\"authorization_servers\":[\"" + oauthBase + "\"]}");
+
+        } else if (uri.contains("oauth-authorization-server")) {
+            resp.getWriter().write("{\"issuer\":\"" + oauthBase + "\","
+                    + "\"authorization_endpoint\":\"" + oauthBase + "/authorize\","
+                    + "\"token_endpoint\":\"" + oauthBase + "/token\","
+                    + "\"registration_endpoint\":\"" + oauthBase + "/register\","
+                    + "\"response_types_supported\":[\"code\"],"
+                    + "\"grant_types_supported\":[\"authorization_code\"],"
+                    + "\"token_endpoint_auth_methods_supported\":[\"none\"],"
+                    + "\"code_challenge_methods_supported\":[\"S256\"],"
+                    + "\"scopes_supported\":[\"WRITE\",\"READ\"]}");
+        } else {
+            resp.setStatus(404);
+            resp.getWriter().write("{\"error\":\"Not found\"}");
+        }
+    }
+
+    private String getBaseUrl() {
+        McpPluginConfig config = getConfig();
+        if (config != null) {
+            String override = config.getConfluenceBaseUrlOverride();
+            if (override != null && !override.isEmpty()) return override;
+        }
+        try {
+            ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
+            if (props != null) return props.getBaseUrl().toString();
+        } catch (Exception e) { /* fall through */ }
+        return "";
+    }
+
+    private McpPluginConfig getConfig() {
+        try {
+            return ComponentLocator.getComponent(McpPluginConfig.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public void destroy() {
+    }
+}

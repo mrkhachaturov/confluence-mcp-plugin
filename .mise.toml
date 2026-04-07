@@ -1,0 +1,9 @@
+[tools]
+just = "latest"
+java = "temurin-21"
+maven = "3.9"
+
+[env]
+_.file = [
+    { path = ".credentials/confluence.env", redact = true },
+]

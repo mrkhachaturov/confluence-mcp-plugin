@@ -1,0 +1,91 @@
+package com.atlassian.mcp.plugin.tools.pages;
+
+import com.atlassian.mcp.plugin.ConfluenceRestClient;
+import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.tools.McpTool;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+public class GetPageChildrenTool implements McpTool {
+    private final ConfluenceRestClient client;
+
+    public GetPageChildrenTool(ConfluenceRestClient client) {
+        this.client = client;
+    }
+
+    @Override public String name() { return "get_page_children"; }
+
+    @Override
+    public String description() {
+        return "Get child pages and folders of a specific Confluence page.";
+    }
+
+    @Override
+    public Map<String, Object> inputSchema() {
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "parent_id", Map.of("type", "string", "description", "The ID of the parent page whose children you want to retrieve"),
+                        "expand", Map.of("type", "string", "description", "Fields to expand in the response (e.g., 'version', 'body.storage')", "default", "version"),
+                        "limit", Map.of("type", "integer", "description", "Maximum number of child items to return (1-50)", "default", 25),
+                        "include_content", Map.of("type", "boolean", "description", "Whether to include the page content in the response", "default", false),
+                        "convert_to_markdown", Map.of("type", "boolean", "description", "Whether to convert page content to markdown (true) or keep it in raw HTML format (false). Only relevant if include_content is true.", "default", true),
+                        "start", Map.of("type", "integer", "description", "Starting index for pagination (0-based)", "default", 0),
+                        "include_folders", Map.of("type", "boolean", "description", "Whether to include child folders in addition to child pages", "default", true)
+                ),
+                "required", List.of("parent_id")
+        );
+    }
+
+    @Override public boolean isWriteTool() { return false; }
+
+    @Override
+    public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
+        String parentId = (String) args.get("parent_id");
+        if (parentId == null || parentId.isBlank()) {
+            throw new McpToolException("'parent_id' parameter is required");
+        }
+        String expand = (String) args.getOrDefault("expand", "version");
+        int limit = Math.min(getInt(args, "limit", 25), 50);
+        boolean includeContent = getBoolean(args, "include_content", false);
+        boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);
+        int start = getInt(args, "start", 0);
+        boolean includeFolders = getBoolean(args, "include_folders", true);
+
+        StringBuilder query = new StringBuilder();
+        String sep = "?";
+        if (expand != null && !expand.isBlank()) {
+            query.append(sep).append("expand=").append(encode(expand));
+            sep = "&";
+        }
+        query.append(sep).append("limit=").append(limit);
+        sep = "&";
+        query.append(sep).append("start=").append(start);
+        sep = "&";
+
+        return client.get("/rest/api/content/" + parentId + "/child/page" + query, authHeader);
+    }
+
+    private static String encode(String s) {
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    private static int getInt(Map<String, Object> args, String key, int defaultVal) {
+        Object val = args.get(key);
+        if (val instanceof Number n) return n.intValue();
+        if (val instanceof String s) {
+            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return defaultVal; }
+        }
+        return defaultVal;
+    }
+
+    private static boolean getBoolean(Map<String, Object> args, String key, boolean defaultVal) {
+        Object val = args.get(key);
+        if (val instanceof Boolean b) return b;
+        if (val instanceof String s) return "true".equalsIgnoreCase(s);
+        return defaultVal;
+    }
+}

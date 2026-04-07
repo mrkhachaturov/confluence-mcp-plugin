@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<atlassian-plugin key="${atlassian.plugin.key}"
+                  name="Confluence MCP Plugin" plugins-version="2">
+    <plugin-info>
+        <description>Connect AI agents to Confluence Data Center</description>
+        <version>${project.version}</version>
+        <vendor name="Ruben Khachaturov" url="https://github.com/mrkhachaturov/confluence-mcp-plugin"/>
+        <param name="plugin-icon">images/pluginIcon.png</param>
+        <param name="plugin-logo">images/pluginLogo.png</param>
+        <param name="atlassian-data-center-status">compatible</param>
+        <param name="atlassian-data-center-compatible">true</param>
+        <param name="configure.url">/plugins/servlet/mcp-admin</param>
+    </plugin-info>
+
+    <!-- i18n -->
+    <resource type="i18n" name="i18n" location="mcp-plugin"/>
+
+    <!-- MCP REST endpoint -->
+    <rest key="mcp-rest" path="/mcp" version="1.0">
+        <description>MCP Streamable HTTP endpoint</description>
+        <package>com.atlassian.mcp.plugin.rest</package>
+    </rest>
+
+    <!-- Admin REST endpoint -->
+    <rest key="mcp-admin-rest" path="/mcp-admin" version="1.0">
+        <description>MCP admin configuration API</description>
+        <package>com.atlassian.mcp.plugin.admin</package>
+    </rest>
+
+    <!-- Admin page servlet -->
+    <servlet key="mcp-admin-servlet"
+             class="com.atlassian.mcp.plugin.admin.AdminServlet">
+        <url-pattern>/mcp-admin</url-pattern>
+    </servlet>
+
+    <!-- Admin sidebar section -->
+    <web-section key="mcp-admin-section" location="system.admin" name="MCP Server" weight="100">
+        <label key="MCP Server"/>
+    </web-section>
+
+    <web-item key="mcp-admin-link" name="MCP Configuration"
+              section="system.admin/mcp-admin-section" weight="10">
+        <label key="MCP Configuration"/>
+        <link linkId="mcp-admin-config">/plugins/servlet/mcp-admin</link>
+        <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.ConfluenceAdministratorCondition"/>
+    </web-item>
+
+    <!-- OAuth: bypass Confluence login filter for servlet + well-known -->
+    <servlet-filter key="mcp-oauth-anon-filter" name="MCP OAuth Anonymous Filter"
+                    class="com.atlassian.mcp.plugin.rest.OAuthAnonymousFilter"
+                    location="before-login" weight="1">
+        <url-pattern>/plugins/servlet/mcp-oauth/*</url-pattern>
+        <url-pattern>/.well-known/*</url-pattern>
+        <url-pattern>/rest/mcp/1.0</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+
+
+    <!-- OAuth servlet — handles OAuth flow without REST auth -->
+    <servlet key="mcp-oauth-servlet"
+             class="com.atlassian.mcp.plugin.rest.OAuthServlet">
+        <url-pattern>/mcp-oauth/*</url-pattern>
+    </servlet>
+
+    <!-- Admin web resources -->
+    <web-resource key="mcp-admin-ui" name="MCP Admin Resources">
+        <dependency>com.atlassian.auiplugin:ajs</dependency>
+        <resource type="download" name="admin.css" location="/css/admin.css"/>
+        <resource type="download" name="admin.js" location="/js/admin.js"/>
+    </web-resource>
+</atlassian-plugin>

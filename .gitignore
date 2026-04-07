@@ -1,0 +1,29 @@
+# Upstream references (local only)
+.upstream/
+
+# Codegen output (regenerated from upstream)
+.codegen/generated/
+
+# Maven
+target/
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Credentials (local only)
+.credentials/
+
+# RKstack / Claude Code
+.rkstack/
+.mcp.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Confluence swagger spec (downloaded locally for reference)
+confluence_dc_*_swagger*.json

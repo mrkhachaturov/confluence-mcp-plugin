@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set up Atlassian Maven repositories
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'SETTINGS'
+          <settings>
+            <profiles>
+              <profile>
+                <id>atlassian</id>
+                <repositories>
+                  <repository>
+                    <id>atlassian-all</id>
+                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-all/</url>
+                  </repository>
+                  <repository>
+                    <id>jenkins-releases</id>
+                    <url>https://repo.jenkins-ci.org/releases/</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>atlassian-all</id>
+                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-all/</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>atlassian</activeProfile>
+            </activeProfiles>
+          </settings>
+          SETTINGS
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Read changelog entry
+        id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          version: ${{ steps.version.outputs.version }}
+          path: ./CHANGELOG.md
+          validation_level: warn
+
+      - name: Set release version from tag
+        run: mvn versions:set -DnewVersion=${{ steps.version.outputs.version }} -B
+
+      - name: Build
+        run: mvn package -DskipTests -B
+
+      - name: Create GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changes }}
+          makeLatest: true
+          artifacts: "target/jira-mcp-plugin-*.jar,target/jira-mcp-plugin-*.obr"

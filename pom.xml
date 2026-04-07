@@ -158,11 +158,6 @@
                             com.atlassian.mcp.plugin.api,
                         </Export-Package>
                         <Import-Package>
-                            org.springframework.osgi.*;resolution:="optional",
-                            org.eclipse.gemini.blueprint.*;resolution:="optional",
-                            javax.inject*;resolution:="optional",
-                            javax.servlet*;resolution:="optional",
-                            javax.ws.rs*;resolution:="optional",
                             jakarta.inject*;resolution:="optional",
                             jakarta.servlet*;resolution:="optional",
                             jakarta.ws.rs*;resolution:="optional",

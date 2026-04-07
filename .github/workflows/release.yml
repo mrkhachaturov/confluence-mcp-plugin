@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Set up Atlassian Maven repositories
+      - name: Set up Maven repositories
         run: |
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << 'SETTINGS'
@@ -31,20 +31,12 @@ jobs:
                 <id>atlassian</id>
                 <repositories>
                   <repository>
-                    <id>atlassian-all</id>
-                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-all/</url>
-                  </repository>
-                  <repository>
                     <id>maven-central</id>
                     <url>https://repo1.maven.org/maven2/</url>
                   </repository>
                   <repository>
-                    <id>jenkins-releases</id>
-                    <url>https://repo.jenkins-ci.org/releases/</url>
-                  </repository>
-                  <repository>
-                    <id>atlassian-3rdparty</id>
-                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-3rdparty/</url>
+                    <id>atlassian-all</id>
+                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-all/</url>
                   </repository>
                   <repository>
                     <id>terracotta</id>

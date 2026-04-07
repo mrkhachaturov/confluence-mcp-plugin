@@ -33,8 +33,16 @@ jobs:
                     <url>https://packages.atlassian.com/artifactory/maven-atlassian-all/</url>
                   </repository>
                   <repository>
+                    <id>maven-central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                  </repository>
+                  <repository>
                     <id>jenkins-releases</id>
                     <url>https://repo.jenkins-ci.org/releases/</url>
+                  </repository>
+                  <repository>
+                    <id>atlassian-3rdparty</id>
+                    <url>https://packages.atlassian.com/artifactory/maven-atlassian-3rdparty/</url>
                   </repository>
                 </repositories>
                 <pluginRepositories>

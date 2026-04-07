@@ -1,6 +1,7 @@
 package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
+import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
@@ -62,20 +63,26 @@ public class CreatePageTool implements McpTool {
         boolean enableHeadingAnchors = getBoolean(args, "enable_heading_anchors", false);
         String emoji = (String) args.get("emoji");
 
-        // Determine representation format
-        String representation = "storage";
-        if ("wiki".equals(contentFormat)) {
+        // Convert content to storage format (mirrors upstream's markdown_to_confluence_storage)
+        String finalBody;
+        String representation;
+        if ("markdown".equals(contentFormat)) {
+            finalBody = MarkdownToStorage.convert(content);
+            representation = "storage";
+        } else if ("wiki".equals(contentFormat)) {
+            finalBody = content;
             representation = "wiki";
+        } else {
+            finalBody = content;
+            representation = "storage";
         }
-        // Note: markdown is not natively supported by Confluence REST API —
-        // upstream converts it to storage format. For now we pass as storage.
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("type", "page");
         requestBody.put("title", title);
         requestBody.put("space", Map.of("key", spaceKey));
         requestBody.put("body", Map.of(representation, Map.of(
-                "value", content,
+                "value", finalBody,
                 "representation", representation
         )));
         if (parentId != null && !parentId.isBlank()) {

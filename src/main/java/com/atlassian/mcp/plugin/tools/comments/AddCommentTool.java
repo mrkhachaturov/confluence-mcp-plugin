@@ -1,6 +1,7 @@
 package com.atlassian.mcp.plugin.tools.comments;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
+import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
@@ -53,7 +54,7 @@ public class AddCommentTool implements McpTool {
         requestBody.put("type", "comment");
         requestBody.put("container", Map.of("id", pageId, "type", "page"));
         requestBody.put("body", Map.of("storage", Map.of(
-                "value", body,
+                "value", MarkdownToStorage.convert(body),
                 "representation", "storage"
         )));
         try {

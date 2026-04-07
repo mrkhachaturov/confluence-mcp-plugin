@@ -37,7 +37,7 @@ public class McpEndpointE2ETest {
 
     private static final String CONFLUENCE_URL = System.getenv("CONFLUENCE_URL");
     private static final String CONFLUENCE_PAT = System.getenv("CONFLUENCE_PAT_RKADMIN");
-    private static final String SPACE_KEY = System.getenv().getOrDefault("CONFLUENCE_SPACE_KEY", "TES");
+    private static final String SPACE_KEY = System.getenv().getOrDefault("CONFLUENCE_SPACE_KEY", "TEST");
 
     private static final String MCP_ENDPOINT = "/rest/mcp/1.0/";
     private static final ObjectMapper MAPPER = new ObjectMapper();

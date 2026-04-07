@@ -46,15 +46,20 @@ public class OAuthStateStore {
 
     public static class ProxyCode {
         public final String accessToken;
+        public final String refreshToken; // may be null if Confluence didn't issue one
+        public final int expiresIn;
         public final String clientId;
         public final String redirectUri;
         public final String codeChallenge;
         public final String codeChallengeMethod;
         public final long createdAt;
 
-        public ProxyCode(String accessToken, String clientId, String redirectUri,
+        public ProxyCode(String accessToken, String refreshToken, int expiresIn,
+                         String clientId, String redirectUri,
                          String codeChallenge, String codeChallengeMethod) {
             this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.expiresIn = expiresIn;
             this.clientId = clientId;
             this.redirectUri = redirectUri;
             this.codeChallenge = codeChallenge;
@@ -107,7 +112,8 @@ public class OAuthStateStore {
         return (auth != null && !auth.isExpired()) ? auth : null;
     }
 
-    public String createProxyCode(String accessToken, String clientId, String redirectUri,
+    public String createProxyCode(String accessToken, String refreshToken, int expiresIn,
+                                   String clientId, String redirectUri,
                                    String codeChallenge, String codeChallengeMethod) {
         cleanup();
         if (proxyCodes.size() >= MAX_PROXY_CODES) {
@@ -115,8 +121,8 @@ public class OAuthStateStore {
             return null;
         }
         String code = UUID.randomUUID().toString();
-        proxyCodes.put(code, new ProxyCode(accessToken, clientId, redirectUri,
-                codeChallenge, codeChallengeMethod));
+        proxyCodes.put(code, new ProxyCode(accessToken, refreshToken, expiresIn,
+                clientId, redirectUri, codeChallenge, codeChallengeMethod));
         return code;
     }
 

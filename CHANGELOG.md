@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.0.1] - 2026-04-07
+
+### Added
+
+- **OAuth refresh token support** -- token endpoint accepts `grant_type=refresh_token`, enabling silent token renewal. User authenticates once, session stays alive indefinitely via automatic refresh
+- Real `expires_in` from Confluence passed through to clients (was hardcoded 3600)
+- E2E test for refresh token grant type: metadata validation + error paths (22 tests total)
+
+### Changed
+
+- OAuth metadata advertises `grant_types_supported: ["authorization_code", "refresh_token"]`
+- Token exchange captures both `access_token` and `refresh_token` from Confluence's response
+- `handleToken()` split into `handleAuthorizationCodeGrant()` + `handleRefreshTokenGrant()`
+- Refresh token lifecycle managed by Confluence's database -- stateless on plugin side, survives restarts
+- Deploy recipe: `clean` before `build`, resolve JAR glob via variable
+
+### Security
+
+- PKCE (S256) enforced on all authorization code grants
+- Refresh token errors return `invalid_grant` with descriptive messages
+- Rate limiting applies to refresh token requests (20/min per IP, same as token endpoint)
+
 ## [1.0.0] - 2026-04-07
 
 ### Added

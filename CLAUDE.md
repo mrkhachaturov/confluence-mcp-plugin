@@ -37,12 +37,12 @@ After generation, copy files to `src/main/java/.../tools/` and update `ToolRegis
 | Layer | What |
 |-------|------|
 | MCP endpoint | JAX-RS at `/rest/mcp/1.0/` — Streamable HTTP (JSON-RPC 2.0 + SSE) |
-| OAuth proxy | Servlet at `/plugins/servlet/mcp-oauth/` — bridges MCP client OAuth with Confluence OAuth 2.0 |
+| OAuth proxy | Servlet at `/plugins/servlet/mcp-oauth/` — bridges MCP client OAuth with Confluence OAuth 2.0, supports refresh token pass-through |
 | Tools | 23 classes in `tools/` — each calls Confluence REST API internally via `ConfluenceRestClient` |
 | Response trimmer | `ResponseTrimmer` — strips verbose fields (`self`, `_links`, `_expandable`, `profilePicture`) to match upstream's `to_simplified_dict()` |
 | Admin | Servlet at `/plugins/servlet/mcp-admin` + REST at `/rest/mcp-admin/1.0/` |
 | Config | `McpPluginConfig` backed by Confluence `PluginSettings` (key-value) |
-| Auth | OAuth 2.0 (via Application Link) or PAT — Confluence validates tokens, plugin checks access control |
+| Auth | OAuth 2.0 (via Application Link) with refresh token support, or PAT — Confluence validates tokens, plugin checks access control |
 
 ## Build & Deploy
 
@@ -171,7 +171,7 @@ Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also stripped.
 
 ## E2E Tests
 
-Tests in `src/test/java/.../e2e/McpEndpointE2ETest.java`. Requires env vars from `.credentials/confluence.env` (auto-loaded by mise).
+22 tests in `src/test/java/.../e2e/McpEndpointE2ETest.java`. Requires env vars from `.credentials/confluence.env` (auto-loaded by mise).
 
 | Category | What |
 |----------|------|
@@ -182,6 +182,7 @@ Tests in `src/test/java/.../e2e/McpEndpointE2ETest.java`. Requires env vars from
 | Page CRUD | create → get → comment → label → delete lifecycle |
 | Error handling | missing param, invalid ID, unknown tool |
 | Streamable HTTP | session create, tool call with session, session delete |
+| OAuth refresh | metadata advertises refresh_token grant, error paths (missing token, bogus token, unsupported grant) |
 
 Tests skip automatically when `CONFLUENCE_URL`/`CONFLUENCE_PAT_RKADMIN` are not set.
 

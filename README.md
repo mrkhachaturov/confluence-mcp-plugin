@@ -161,19 +161,22 @@ Comments (`add_comment`, `reply_to_comment`) also accept Markdown and convert au
 
 ### OAuth 2.0 (recommended) 🌐
 
-The plugin proxies between MCP clients and Confluence's built-in OAuth provider. Users click Authenticate, consent in the browser, and the token exchange happens automatically.
+The plugin proxies between MCP clients and Confluence's built-in OAuth provider. Users click Authenticate, consent in the browser, and the token exchange happens automatically. Refresh tokens are passed through from Confluence, so sessions renew seamlessly without re-authentication.
 
 ```mermaid
 graph LR
     A["🤖 MCP Client"] --> B["🔌 Plugin OAuth Proxy"]
     B --> C["📘 Confluence OAuth 2.0"]
     C --> D["✅ User Consent"]
-    D --> E["🔑 Access Token"]
+    D --> E["🔑 Access + Refresh Tokens"]
     E --> F["✅ Connected"]
+    F -.->|"token expired"| G["🔄 Refresh"]
+    G --> B
 
     style B fill:#f59e0b,color:#000
     style C fill:#0052CC,color:#fff
     style F fill:#10b981,color:#fff
+    style G fill:#6366f1,color:#fff
 ```
 
 ### Personal Access Tokens 🔑

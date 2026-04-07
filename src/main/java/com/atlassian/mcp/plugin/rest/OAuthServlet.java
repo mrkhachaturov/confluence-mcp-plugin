@@ -112,7 +112,7 @@ public class OAuthServlet extends HttpServlet {
             meta.put("token_endpoint", base + "/token");
             meta.put("registration_endpoint", base + "/register");
             meta.put("response_types_supported", List.of("code"));
-            meta.put("grant_types_supported", List.of("authorization_code"));
+            meta.put("grant_types_supported", List.of("authorization_code", "refresh_token"));
             meta.put("token_endpoint_auth_methods_supported", List.of("none"));
             meta.put("code_challenge_methods_supported", List.of("S256"));
             meta.put("scopes_supported", List.of("WRITE", "READ"));
@@ -295,9 +295,9 @@ public class OAuthServlet extends HttpServlet {
             return;
         }
 
-        String accessToken;
+        ConfluenceTokenResponse confluenceTokens;
         try {
-            accessToken = exchangeCodeForToken(confluenceCode);
+            confluenceTokens = exchangeCodeForToken(confluenceCode);
         } catch (Exception e) {
             log.warn("[MCP-SEC] Token exchange failed: {}", e.getMessage());
             addSecurityHeaders(resp);
@@ -308,7 +308,8 @@ public class OAuthServlet extends HttpServlet {
             return;
         }
 
-        String proxyCode = stateStore.createProxyCode(accessToken,
+        String proxyCode = stateStore.createProxyCode(confluenceTokens.accessToken,
+                confluenceTokens.refreshToken, confluenceTokens.expiresIn,
                 pending.clientId, pending.clientRedirectUri,
                 pending.codeChallenge, pending.codeChallengeMethod);
         if (proxyCode == null) {
@@ -335,16 +336,23 @@ public class OAuthServlet extends HttpServlet {
         }
 
         String grantType = req.getParameter("grant_type");
-        String code = req.getParameter("code");
-        String redirectUri = req.getParameter("redirect_uri");
         String clientId = req.getParameter("client_id");
-        String codeVerifier = req.getParameter("code_verifier");
 
-        if (!"authorization_code".equals(grantType)) {
+        if ("authorization_code".equals(grantType)) {
+            handleAuthorizationCodeGrant(req, resp, clientId);
+        } else if ("refresh_token".equals(grantType)) {
+            handleRefreshTokenGrant(req, resp, clientId);
+        } else {
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"unsupported_grant_type\"}");
-            return;
         }
+    }
+
+    private void handleAuthorizationCodeGrant(HttpServletRequest req, HttpServletResponse resp,
+                                               String clientId) throws IOException {
+        String code = req.getParameter("code");
+        String redirectUri = req.getParameter("redirect_uri");
+        String codeVerifier = req.getParameter("code_verifier");
 
         OAuthStateStore.ProxyCode proxyCode = stateStore.consumeProxyCode(code);
         if (proxyCode == null) {
@@ -378,13 +386,65 @@ public class OAuthServlet extends HttpServlet {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("access_token", proxyCode.accessToken);
         result.put("token_type", "bearer");
-        result.put("expires_in", 3600);
+        result.put("expires_in", proxyCode.expiresIn);
+
+        // Pass through Confluence's refresh token directly — Confluence's DB manages lifecycle
+        if (proxyCode.refreshToken != null) {
+            result.put("refresh_token", proxyCode.refreshToken);
+        }
+
         addSecurityHeaders(resp);
         mapper.writeValue(resp.getWriter(), result);
     }
 
-    private String exchangeCodeForToken(String code) throws IOException, InterruptedException {
-        String tokenUrl = getBaseUrl() + "/rest/oauth2/latest/token";
+    private void handleRefreshTokenGrant(HttpServletRequest req, HttpServletResponse resp,
+                                          String clientId) throws IOException {
+        String refreshToken = req.getParameter("refresh_token");
+
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            resp.setStatus(400);
+            resp.getWriter().write("{\"error\":\"invalid_request\",\"error_description\":\"refresh_token is required\"}");
+            return;
+        }
+
+        // Forward Confluence's refresh token directly — Confluence validates and rotates in its DB
+        ConfluenceTokenResponse confluenceTokens;
+        try {
+            confluenceTokens = refreshConfluenceToken(refreshToken);
+        } catch (Exception e) {
+            log.warn("[MCP-SEC] Confluence refresh token exchange failed: {}", e.getMessage());
+            resp.setStatus(400);
+            resp.getWriter().write("{\"error\":\"invalid_grant\",\"error_description\":\"Refresh token invalid or expired\"}");
+            return;
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("access_token", confluenceTokens.accessToken);
+        result.put("token_type", "bearer");
+        result.put("expires_in", confluenceTokens.expiresIn);
+
+        // Pass through Confluence's rotated refresh token
+        if (confluenceTokens.refreshToken != null) {
+            result.put("refresh_token", confluenceTokens.refreshToken);
+        }
+
+        addSecurityHeaders(resp);
+        mapper.writeValue(resp.getWriter(), result);
+    }
+
+    private static class ConfluenceTokenResponse {
+        final String accessToken;
+        final String refreshToken; // may be null
+        final int expiresIn;
+
+        ConfluenceTokenResponse(String accessToken, String refreshToken, int expiresIn) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.expiresIn = expiresIn;
+        }
+    }
+
+    private ConfluenceTokenResponse exchangeCodeForToken(String code) throws IOException, InterruptedException {
         String callbackUri = getOAuthBase() + "/callback";
 
         String body = "grant_type=authorization_code"
@@ -392,6 +452,21 @@ public class OAuthServlet extends HttpServlet {
                 + "&client_secret=" + enc(config.getOAuthClientSecret())
                 + "&code=" + enc(code)
                 + "&redirect_uri=" + enc(callbackUri);
+
+        return callConfluenceTokenEndpoint(body);
+    }
+
+    private ConfluenceTokenResponse refreshConfluenceToken(String confluenceRefreshToken) throws IOException, InterruptedException {
+        String body = "grant_type=refresh_token"
+                + "&client_id=" + enc(config.getOAuthClientId())
+                + "&client_secret=" + enc(config.getOAuthClientSecret())
+                + "&refresh_token=" + enc(confluenceRefreshToken);
+
+        return callConfluenceTokenEndpoint(body);
+    }
+
+    private ConfluenceTokenResponse callConfluenceTokenEndpoint(String body) throws IOException, InterruptedException {
+        String tokenUrl = getBaseUrl() + "/rest/oauth2/latest/token";
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(java.net.URI.create(tokenUrl))
@@ -411,7 +486,11 @@ public class OAuthServlet extends HttpServlet {
         if (tokenNode == null) {
             throw new IOException("No access_token in response");
         }
-        return tokenNode.asText();
+
+        String refreshToken = json.has("refresh_token") ? json.get("refresh_token").asText() : null;
+        int expiresIn = json.has("expires_in") ? json.get("expires_in").asInt() : 3600;
+
+        return new ConfluenceTokenResponse(tokenNode.asText(), refreshToken, expiresIn);
     }
 
     // ── Security helpers ─────────────────────────────────────────────

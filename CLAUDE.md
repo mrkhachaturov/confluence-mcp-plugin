@@ -131,13 +131,30 @@ Tools call Confluence REST API directly via `ConfluenceRestClient.get/post/put/d
 - **Add comment**: Structure as `{"type": "comment", "container": {"id": "...", "type": "page"}, "body": {"storage": {"value": "...", "representation": "storage"}}}`
 - **Add label**: Structure as `[{"prefix": "global", "name": "..."}]`
 
+### Markdown-to-Storage Conversion
+
+AI agents send Markdown by default (`content_format=markdown`). The upstream Python project converts markdown to Confluence storage format (XHTML) via `md2conf` before sending to the API. Our plugin mirrors this with `MarkdownToStorage` using [flexmark-java](https://github.com/vsch/flexmark-java) 0.64.8.
+
+**Pipeline:** Markdown → flexmark-java (with GFM extensions) → HTML → Confluence storage format (XHTML)
+
+**Applied to:** `create_page`, `update_page`, `add_comment`, `reply_to_comment`
+
+**Three content formats supported (mirroring upstream):**
+- `markdown` (default) — converted to XHTML via flexmark-java
+- `wiki` — passed to Confluence as wiki markup
+- `storage` — passed as-is (must be valid Confluence XHTML)
+
+**GFM extensions enabled:** tables, strikethrough, task lists, autolinks
+
 ## Response Trimming
 
 `ResponseTrimmer` runs on all `ConfluenceRestClient` responses. It strips fields that the upstream's Pydantic models never include:
 
-**Stripped recursively:** `self`, `_links`, `_expandable`, `expand`, `extensions`, `profilePicture`
+**Stripped recursively:** `self`, `_links`, `_expandable`, `expand`, `extensions`, `profilePicture`, `userKey`
 
-**Stripped at top level:** `operations`, `restrictions`, `metadata`
+**Stripped at top level:** `operations`, `restrictions`, `metadata`, `container`, `position`
+
+Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also stripped.
 
 ## Admin Config (PluginSettings keys)
 

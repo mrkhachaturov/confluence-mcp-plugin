@@ -128,6 +128,35 @@ Sessions are tracked via the `MCP-Session-Id` header, assigned on `initialize`.
 
 ---
 
+## 📝 Content creation — Markdown pipeline
+
+AI agents write in Markdown naturally. The plugin converts it to Confluence storage format (XHTML) automatically, mirroring the upstream mcp-atlassian's `markdown_to_confluence_storage()` pipeline.
+
+```mermaid
+graph LR
+    AI["🤖 AI writes Markdown"] --> TOOL["🛠️ create_page / update_page<br/>content_format=markdown"]
+    TOOL --> FLEX["📄 flexmark-java<br/>GFM extensions"]
+    FLEX --> XHTML["📘 Confluence Storage Format<br/>(XHTML)"]
+    XHTML --> API["📡 Confluence REST API"]
+    API --> PAGE["✅ Rendered page"]
+
+    style FLEX fill:#6366f1,color:#fff
+    style XHTML fill:#0052CC,color:#fff
+    style PAGE fill:#10b981,color:#fff
+```
+
+| | Format | Who uses it | What happens |
+|---|--------|------------|--------------|
+| 📝 | `markdown` (default) | AI agents | Converted to XHTML via [flexmark-java](https://github.com/vsch/flexmark-java) with GFM tables, strikethrough, task lists, autolinks |
+| 📖 | `wiki` | Confluence power users | Passed to API as wiki markup, Confluence converts server-side |
+| 🔧 | `storage` | Programmatic use | Passed as-is (must be valid Confluence XHTML) |
+
+**Supported Markdown features:** headings, bold/italic, links, images, ordered/unordered lists, tables, code blocks (with language), blockquotes, strikethrough, task lists, autolinks.
+
+Comments (`add_comment`, `reply_to_comment`) also accept Markdown and convert automatically.
+
+---
+
 ## 🔐 Authentication
 
 ### OAuth 2.0 (recommended) 🌐

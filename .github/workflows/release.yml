@@ -14,10 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
 
@@ -78,4 +78,4 @@ jobs:
           name: v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changes }}
           makeLatest: true
-          artifacts: "target/jira-mcp-plugin-*.jar,target/jira-mcp-plugin-*.obr"
+          artifacts: "target/confluence-mcp-plugin-*.jar,target/confluence-mcp-plugin-*.obr"

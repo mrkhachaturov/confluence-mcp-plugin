@@ -44,6 +44,10 @@ jobs:
                     <id>atlassian-3rdparty</id>
                     <url>https://packages.atlassian.com/artifactory/maven-atlassian-3rdparty/</url>
                   </repository>
+                  <repository>
+                    <id>terracotta</id>
+                    <url>https://repo.terracotta.org/maven2/</url>
+                  </repository>
                 </repositories>
                 <pluginRepositories>
                   <pluginRepository>

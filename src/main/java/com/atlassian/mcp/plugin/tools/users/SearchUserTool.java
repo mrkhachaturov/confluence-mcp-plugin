@@ -47,9 +47,10 @@ public class SearchUserTool implements McpTool {
         int limit = Math.min(getInt(args, "limit", 10), 50);
         String groupName = (String) args.getOrDefault("group_name", "confluence-users");
 
-        // Server/DC: search group members and filter by query
-        return client.get("/rest/api/group/" + encode(groupName)
-                + "/member?limit=" + limit, authHeader);
+        // Use CQL search — works with both PAT and OAuth (3LO)
+        // /rest/api/group/*/member and /rest/api/user are blocked for 3LO tokens
+        String cql = "type=user AND user.fullname~\"" + searchQuery.replace("\"", "\\\"") + "\"";
+        return client.get("/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, authHeader);
     }
 
     private static String encode(String s) {

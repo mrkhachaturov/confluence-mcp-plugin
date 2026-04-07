@@ -57,7 +57,12 @@ public final class ResponseTrimmer {
         try {
             JsonNode root = MAPPER.readTree(json);
             trimNode(root, true);
-            return MAPPER.writeValueAsString(root);
+            String result = MAPPER.writeValueAsString(root);
+            // Strip Confluence search highlight markers: @@@hl@@@ and @@@endhl@@@
+            if (result.contains("@@@")) {
+                result = result.replace("@@@hl@@@", "").replace("@@@endhl@@@", "");
+            }
+            return result;
         } catch (Exception e) {
             return json;
         }

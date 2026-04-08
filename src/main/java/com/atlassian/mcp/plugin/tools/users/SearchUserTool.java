@@ -2,15 +2,24 @@ package com.atlassian.mcp.plugin.tools.users;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.search_user()
+ * Returns: [{display_name, email}, ...]
+ */
 public class SearchUserTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public SearchUserTool(ConfluenceRestClient client) {
         this.client = client;
@@ -45,12 +54,27 @@ public class SearchUserTool implements McpTool {
             throw new McpToolException("'query' parameter is required");
         }
         int limit = Math.min(getInt(args, "limit", 10), 50);
-        String groupName = (String) args.getOrDefault("group_name", "confluence-users");
 
         // Use CQL search — works with both PAT and OAuth (3LO)
-        // /rest/api/group/*/member and /rest/api/user are blocked for 3LO tokens
         String cql = "type=user AND user.fullname~\"" + searchQuery.replace("\"", "\\\"") + "\"";
-        return client.get("/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, authHeader);
+        String rawJson = client.getRaw("/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, authHeader);
+
+        // Transform to upstream format: flat list of simplified user dicts
+        try {
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode output = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode result : results) {
+                    output.add(ResponseTransformer.simplifyUserNode(result));
+                }
+            }
+
+            return mapper.writeValueAsString(output);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform user search results: " + e.getMessage());
+        }
     }
 
     private static String encode(String s) {

@@ -2,15 +2,22 @@ package com.atlassian.mcp.plugin.tools.comments;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_comments()
+ * Returns: [{id, body, created, updated, author, parent_comment_id, location}, ...]
+ */
 public class GetCommentsTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetCommentsTool(ConfluenceRestClient client) {
         this.client = client;
@@ -43,11 +50,25 @@ public class GetCommentsTool implements McpTool {
             throw new McpToolException("'page_id' parameter is required");
         }
 
-        return client.get("/rest/api/content/" + pageId
-                + "/child/comment?expand=body.storage,version&depth=all", authHeader);
-    }
+        // Upstream uses body.view (rendered HTML) — easier to convert to markdown
+        String rawJson = client.getRaw("/rest/api/content/" + pageId
+                + "/child/comment?expand=body.view,version,ancestors&depth=all", authHeader);
 
-    private static String encode(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+        // Transform to upstream format: flat list of simplified comment dicts
+        try {
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode output = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode comment : results) {
+                    output.add(ResponseTransformer.simplifyCommentNode(comment, true));
+                }
+            }
+
+            return mapper.writeValueAsString(output);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform comments response: " + e.getMessage());
+        }
     }
 }

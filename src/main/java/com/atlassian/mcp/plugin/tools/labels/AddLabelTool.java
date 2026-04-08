@@ -2,13 +2,19 @@ package com.atlassian.mcp.plugin.tools.labels;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.HashMap;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.add_label()
+ * Returns: updated list of all labels [{id, name, prefix, label}, ...]
+ */
 public class AddLabelTool implements McpTool {
     private final ConfluenceRestClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -53,9 +59,25 @@ public class AddLabelTool implements McpTool {
         List<Map<String, String>> labels = List.of(Map.of("prefix", "global", "name", name));
         try {
             String jsonBody = mapper.writeValueAsString(labels);
-            return client.post("/rest/api/content/" + pageId + "/label", jsonBody, authHeader);
+            client.post("/rest/api/content/" + pageId + "/label", jsonBody, authHeader);
+
+            // Upstream refreshes label list after adding — return updated labels
+            String rawJson = client.getRaw("/rest/api/content/" + pageId + "/label", authHeader);
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode output = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode label : results) {
+                    output.add(ResponseTransformer.simplifyLabelNode(label));
+                }
+            }
+
+            return mapper.writeValueAsString(output);
+        } catch (McpToolException e) {
+            throw e;
         } catch (Exception e) {
-            throw new McpToolException("Failed to serialize request: " + e.getMessage());
+            throw new McpToolException("Failed to add label: " + e.getMessage());
         }
     }
 }

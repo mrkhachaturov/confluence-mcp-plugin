@@ -3,14 +3,20 @@ package com.atlassian.mcp.plugin.tools.pages;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.update_page()
+ * Returns: {message, page: {simplified page dict}}
+ */
 public class UpdatePageTool implements McpTool {
     private final ConfluenceRestClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -65,13 +71,11 @@ public class UpdatePageTool implements McpTool {
         String versionComment = (String) args.get("version_comment");
         String parentId = (String) args.get("parent_id");
         String contentFormat = (String) args.getOrDefault("content_format", "markdown");
-        boolean enableHeadingAnchors = getBoolean(args, "enable_heading_anchors", false);
-        String emoji = (String) args.get("emoji");
 
         // Fetch current page to get the version number
         int currentVersion;
         try {
-            String current = client.get("/rest/api/content/" + pageId + "?expand=version", authHeader);
+            String current = client.getRaw("/rest/api/content/" + pageId + "?expand=version", authHeader);
             JsonNode parsed = mapper.readTree(current);
             currentVersion = parsed.path("version").path("number").asInt(0);
         } catch (Exception e) {
@@ -113,9 +117,19 @@ public class UpdatePageTool implements McpTool {
         }
         try {
             String jsonBody = mapper.writeValueAsString(requestBody);
-            return client.put("/rest/api/content/" + pageId, jsonBody, authHeader);
+            String rawJson = client.putRaw("/rest/api/content/" + pageId, jsonBody, authHeader);
+
+            // Transform to upstream format: {message, page}
+            String baseUrl = client.getBaseUrl();
+            JsonNode raw = mapper.readTree(rawJson);
+            ObjectNode result = mapper.createObjectNode();
+            result.put("message", "Page updated successfully");
+            result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, false));
+            return mapper.writeValueAsString(result);
+        } catch (McpToolException e) {
+            throw e;
         } catch (Exception e) {
-            throw new McpToolException("Failed to serialize request: " + e.getMessage());
+            throw new McpToolException("Failed to update page: " + e.getMessage());
         }
     }
 

@@ -167,13 +167,27 @@ public class McpEndpointE2ETest {
     // ── Response Trimming Tests ──────────────────────────────────────
 
     @Test
-    public void t30_responseTrimming_noSelfLinks() throws Exception {
+    public void t30_responseFormat_matchesUpstream() throws Exception {
         JsonNode result = callTool("search", Map.of("query", "type=page", "limit", 3));
         String raw = getContentText(result);
         assertNotNull(raw);
 
-        assertFalse("Response should not contain \"self\" links",
-                raw.contains("\"self\""));
+        // Whitelist approach: no internal Confluence fields leak
+        assertFalse("Should not contain _links", raw.contains("\"_links\""));
+        assertFalse("Should not contain _expandable", raw.contains("\"_expandable\""));
+        assertFalse("Should not contain profilePicture", raw.contains("\"profilePicture\""));
+
+        // Should be a flat list of simplified page dicts with full URLs
+        JsonNode parsed = MAPPER.readTree(raw);
+        assertTrue("Search should return array", parsed.isArray());
+        if (parsed.size() > 0) {
+            JsonNode first = parsed.get(0);
+            assertTrue("Each result should have url", first.has("url"));
+            assertTrue("URL should be full URL",
+                    first.path("url").asText().startsWith("http"));
+            assertTrue("Each result should have id", first.has("id"));
+            assertTrue("Each result should have title", first.has("title"));
+        }
     }
 
     // ── Page CRUD Lifecycle Test ─────────────────────────────────────
@@ -191,8 +205,12 @@ public class McpEndpointE2ETest {
         String text = getContentText(result);
         JsonNode parsed = MAPPER.readTree(text);
 
-        createdPageId = parsed.has("id") ? parsed.path("id").asText() : null;
+        // Response format: {"message": "...", "page": {"id": "...", ...}}
+        JsonNode pageNode = parsed.path("page");
+        createdPageId = pageNode.has("id") ? pageNode.path("id").asText() : null;
         assertNotNull("Should return created page ID", createdPageId);
+        assertTrue("Should have success message", parsed.has("message"));
+        assertTrue("Page should have url", pageNode.has("url"));
 
         System.out.println("[e2e] Created page: " + createdPageId);
     }
@@ -207,6 +225,15 @@ public class McpEndpointE2ETest {
         String text = getContentText(result);
         assertTrue("Response should contain page ID",
                 text.contains(createdPageId));
+
+        // Verify upstream response format: {"metadata": {"id", "title", "url", ...}}
+        JsonNode parsed = MAPPER.readTree(text);
+        assertTrue("Should have metadata wrapper", parsed.has("metadata"));
+        JsonNode metadata = parsed.path("metadata");
+        assertTrue("Metadata should have url", metadata.has("url"));
+        assertTrue("URL should be full URL",
+                metadata.path("url").asText().startsWith("http"));
+        assertTrue("Metadata should have content", metadata.has("content"));
     }
 
     @Test

@@ -2,15 +2,22 @@ package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_page_history()
+ * Returns: same format as get_page metadata (simplified page dict)
+ */
 public class GetPageHistoryTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetPageHistoryTool(ConfluenceRestClient client) {
         this.client = client;
@@ -47,13 +54,19 @@ public class GetPageHistoryTool implements McpTool {
         int version = getInt(args, "version", 0);
         boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);
 
-        return client.get("/rest/api/content/" + pageId
+        String rawJson = client.getRaw("/rest/api/content/" + pageId
                 + "?status=historical&version=" + version
                 + "&expand=body.storage,version,space", authHeader);
-    }
 
-    private static String encode(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+        // Transform to upstream format
+        try {
+            String baseUrl = client.getBaseUrl();
+            JsonNode root = mapper.readTree(rawJson);
+            ObjectNode simplified = ResponseTransformer.simplifyPageNode(root, baseUrl, convertToMarkdown);
+            return mapper.writeValueAsString(simplified);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform page history response: " + e.getMessage());
+        }
     }
 
     private static int getInt(Map<String, Object> args, String key, int defaultVal) {

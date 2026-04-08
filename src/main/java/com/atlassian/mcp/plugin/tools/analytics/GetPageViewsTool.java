@@ -3,12 +3,21 @@ package com.atlassian.mcp.plugin.tools.analytics;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_page_views()
+ * Returns: {page_id, page_title, total_views, unique_viewers, last_viewed}
+ * Note: Cloud-only API. Server/DC does not support the Analytics API.
+ */
 public class GetPageViewsTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetPageViewsTool(ConfluenceRestClient client) {
         this.client = client;
@@ -43,7 +52,32 @@ public class GetPageViewsTool implements McpTool {
         }
         boolean includeTitle = getBoolean(args, "include_title", true);
 
-        return client.get("/rest/api/analytics/content/" + pageId + "/views", authHeader);
+        String rawJson = client.getRaw("/rest/api/analytics/content/" + pageId + "/views", authHeader);
+
+        // Transform to upstream format: {page_id, page_title, total_views, unique_viewers, last_viewed}
+        try {
+            JsonNode raw = mapper.readTree(rawJson);
+            ObjectNode result = mapper.createObjectNode();
+            result.put("page_id", pageId);
+
+            if (includeTitle) {
+                // Fetch page title separately
+                try {
+                    String pageJson = client.getRaw("/rest/api/content/" + pageId + "?expand=", authHeader);
+                    JsonNode pageNode = mapper.readTree(pageJson);
+                    result.put("page_title", pageNode.path("title").asText(""));
+                } catch (Exception e) {
+                    result.put("page_title", "");
+                }
+            }
+
+            result.put("total_views", raw.path("count").asLong(0));
+            result.put("last_viewed", raw.path("lastSeen").asText(""));
+
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform page views response: " + e.getMessage());
+        }
     }
 
     private static boolean getBoolean(Map<String, Object> args, String key, boolean defaultVal) {

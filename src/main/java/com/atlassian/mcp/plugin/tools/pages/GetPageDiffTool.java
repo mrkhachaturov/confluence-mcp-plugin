@@ -5,10 +5,15 @@ import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_page_diff()
+ * Returns: {page_id, from_version, to_version, diff}
+ */
 public class GetPageDiffTool implements McpTool {
     private final ConfluenceRestClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -52,11 +57,11 @@ public class GetPageDiffTool implements McpTool {
         }
 
         try {
-            // Fetch both versions
-            String fromJson = client.get("/rest/api/content/" + pageId
+            // Fetch both versions (raw — we need body.storage.value)
+            String fromJson = client.getRaw("/rest/api/content/" + pageId
                     + "?status=historical&version=" + fromVersion
                     + "&expand=body.storage,version", authHeader);
-            String toJson = client.get("/rest/api/content/" + pageId
+            String toJson = client.getRaw("/rest/api/content/" + pageId
                     + "?status=historical&version=" + toVersion
                     + "&expand=body.storage,version", authHeader);
 
@@ -86,7 +91,13 @@ public class GetPageDiffTool implements McpTool {
                 }
             }
 
-            return diff.toString();
+            // Return as JSON object matching upstream format
+            ObjectNode result = mapper.createObjectNode();
+            result.put("page_id", pageId);
+            result.put("from_version", fromVersion);
+            result.put("to_version", toVersion);
+            result.put("diff", diff.toString());
+            return mapper.writeValueAsString(result);
         } catch (McpToolException e) {
             throw e;
         } catch (Exception e) {

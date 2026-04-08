@@ -39,7 +39,9 @@ After generation, copy files to `src/main/java/.../tools/` and update `ToolRegis
 | MCP endpoint | JAX-RS at `/rest/mcp/1.0/` — Streamable HTTP (JSON-RPC 2.0 + SSE) |
 | OAuth proxy | Servlet at `/plugins/servlet/mcp-oauth/` — bridges MCP client OAuth with Confluence OAuth 2.0, supports refresh token pass-through |
 | Tools | 23 classes in `tools/` — each calls Confluence REST API internally via `ConfluenceRestClient` |
-| Response trimmer | `ResponseTrimmer` — strips verbose fields (`self`, `_links`, `_expandable`, `profilePicture`) to match upstream's `to_simplified_dict()` |
+| Response transformer | `ResponseTransformer` — whitelist-based JSON transformation matching upstream's `to_simplified_dict()`. Constructs full URLs, formats timestamps, simplifies pages/comments/labels/users |
+| Storage→Markdown | `StorageToMarkdown` — jsoup-based converter for ALL [Confluence storage format](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html) elements (30+ element types) |
+| Response trimmer | `ResponseTrimmer` — strips verbose fields from legacy `client.get()` responses (tools now use `client.getRaw()` + `ResponseTransformer` instead) |
 | Admin | Servlet at `/plugins/servlet/mcp-admin` + REST at `/rest/mcp-admin/1.0/` |
 | Config | `McpPluginConfig` backed by Confluence `PluginSettings` (key-value) |
 | Auth | OAuth 2.0 (via Application Link) with refresh token support, or PAT — Confluence validates tokens, plugin checks access control |
@@ -131,30 +133,30 @@ Tools call Confluence REST API directly via `ConfluenceRestClient.get/post/put/d
 - **Add comment**: Structure as `{"type": "comment", "container": {"id": "...", "type": "page"}, "body": {"storage": {"value": "...", "representation": "storage"}}}`
 - **Add label**: Structure as `[{"prefix": "global", "name": "..."}]`
 
-### Markdown-to-Storage Conversion
+### Content Conversion (bidirectional)
 
-AI agents send Markdown by default (`content_format=markdown`). The upstream Python project converts markdown to Confluence storage format (XHTML) via `md2conf` before sending to the API. Our plugin mirrors this with `MarkdownToStorage` using [flexmark-java](https://github.com/vsch/flexmark-java) 0.64.8.
+**Markdown → Storage** (write tools: `create_page`, `update_page`, `add_comment`, `reply_to_comment`):
 
-**Pipeline:** Markdown → flexmark-java (with GFM extensions) → HTML → Confluence storage format (XHTML)
+- `MarkdownToStorage` using flexmark-java 0.64.8 with GFM extensions (tables, strikethrough, task lists, autolinks)
+- Three content formats: `markdown` (default, converted), `wiki` (passed as-is), `storage` (passed as-is)
 
-**Applied to:** `create_page`, `update_page`, `add_comment`, `reply_to_comment`
+**Storage → Markdown** (read tools: `get_page`, `get_comments`, `get_page_children`, `get_page_history`):
 
-**Three content formats supported (mirroring upstream):**
-- `markdown` (default) — converted to XHTML via flexmark-java
-- `wiki` — passed to Confluence as wiki markup
-- `storage` — passed as-is (must be valid Confluence XHTML)
+- `StorageToMarkdown` using jsoup (XML parser) + flexmark-html2md-converter
+- Full [Confluence storage format](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html) support:
+  - **Macros:** code (with language), noformat, info/note/warning/tip, panel, expand, toc, anchor, jira, status, section/column, excerpt, include, children, attachments, blog-posts, profile, content-by-label
+  - **Elements:** ac:image (ri:attachment, ri:url), ac:link (ri:page, ri:attachment, ri:user, ri:space, ri:shortcut, ri:blog-post), ac:emoticon (Unicode mapping), ac:task-list/ac:task, ac:layout/ac:layout-section/ac:layout-cell, ac:placeholder
+  - **Unknown macros:** graceful fallback — unwrap body content
 
-**GFM extensions enabled:** tables, strikethrough, task lists, autolinks
+### Response Transformation
 
-## Response Trimming
+Each tool transforms raw Confluence API JSON into upstream's `to_simplified_dict()` format via `ResponseTransformer`:
 
-`ResponseTrimmer` runs on all `ConfluenceRestClient` responses. It strips fields that the upstream's Pydantic models never include:
-
-**Stripped recursively:** `self`, `_links`, `_expandable`, `expand`, `extensions`, `profilePicture`, `userKey`
-
-**Stripped at top level:** `operations`, `restrictions`, `metadata`, `container`, `position`
-
-Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also stripped.
+- **Whitelist approach** — only include fields the upstream model defines (not blacklist stripping)
+- **URL construction** — `{baseUrl}/pages/viewpage.action?pageId={id}` (Server/DC format)
+- **Timestamp formatting** — ISO 8601 → `YYYY-MM-DD HH:MM:SS` (matching upstream's `TimestampMixin`)
+- Tools use `client.getRaw()` for untrimmed responses, then `ResponseTransformer` for clean output
+- `ResponseTrimmer` remains for backward compatibility with legacy code paths
 
 ## Admin Config (PluginSettings keys)
 
@@ -178,8 +180,8 @@ Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also stripped.
 | Protocol | initialize, ping, invalid method |
 | Tools list | count, upstream parity, schema validation |
 | Read tools | search, search_user |
-| Response trimming | no self links |
-| Page CRUD | create → get → comment → label → delete lifecycle |
+| Response format | upstream-compatible structure, full URLs, no leaked internal fields |
+| Page CRUD | create → get → comment → label → delete lifecycle, response format assertions |
 | Error handling | missing param, invalid ID, unknown tool |
 | Streamable HTTP | session create, tool call with session, session delete |
 | OAuth refresh | metadata advertises refresh_token grant, error paths (missing token, bogus token, unsupported grant) |
@@ -195,8 +197,11 @@ src/main/java/com/atlassian/mcp/plugin/
 │   ├── OAuthServlet.java             # OAuth proxy servlet
 │   └── OAuthAnonymousFilter.java     # before-login filter for anonymous OAuth access
 ├── JsonRpcHandler.java                # JSON-RPC dispatch
-├── ConfluenceRestClient.java          # HTTP client → Confluence REST API (+ ResponseTrimmer)
-├── ResponseTrimmer.java               # Strip verbose fields from Confluence JSON responses
+├── ConfluenceRestClient.java          # HTTP client → Confluence REST API (get/getRaw + trimmed/raw)
+├── ResponseTransformer.java           # Whitelist JSON transformation (upstream to_simplified_dict)
+├── StorageToMarkdown.java             # Confluence storage format → Markdown (jsoup + flexmark)
+├── MarkdownToStorage.java             # Markdown → Confluence storage format (flexmark)
+├── ResponseTrimmer.java               # Legacy blacklist field stripping (used by client.get())
 ├── McpToolException.java              # Checked exception for tool failures
 ├── config/
 │   ├── McpPluginConfig.java           # PluginSettings-backed configuration

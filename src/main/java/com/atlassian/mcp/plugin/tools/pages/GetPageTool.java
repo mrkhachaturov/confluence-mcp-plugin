@@ -2,15 +2,24 @@ package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_page()
+ * Returns: {"metadata": {simplified page dict}} when include_metadata=true
+ */
 public class GetPageTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetPageTool(ConfluenceRestClient client) {
         this.client = client;
@@ -45,20 +54,46 @@ public class GetPageTool implements McpTool {
         String pageId = (String) args.get("page_id");
         String title = (String) args.get("title");
         String spaceKey = (String) args.get("space_key");
+        boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);
 
-        String expand = "body.storage,version,space,ancestors,metadata.labels";
+        String expand = "body.storage,version,space,ancestors,children.attachment,metadata.labels";
 
+        String rawJson;
         if (pageId != null && !pageId.isBlank()) {
-            return client.get("/rest/api/content/" + pageId + "?expand=" + encode(expand), authHeader);
-        }
-
-        if (title != null && !title.isBlank() && spaceKey != null && !spaceKey.isBlank()) {
-            return client.get("/rest/api/content?title=" + encode(title)
+            rawJson = client.getRaw("/rest/api/content/" + pageId + "?expand=" + encode(expand), authHeader);
+        } else if (title != null && !title.isBlank() && spaceKey != null && !spaceKey.isBlank()) {
+            rawJson = client.getRaw("/rest/api/content?title=" + encode(title)
                     + "&spaceKey=" + encode(spaceKey)
                     + "&expand=" + encode(expand), authHeader);
+        } else {
+            throw new McpToolException("Either 'page_id' or both 'title' and 'space_key' are required");
         }
 
-        throw new McpToolException("Either 'page_id' or both 'title' and 'space_key' are required");
+        // Transform to upstream format: {"metadata": {simplified page dict}}
+        try {
+            String baseUrl = client.getBaseUrl();
+            JsonNode root = mapper.readTree(rawJson);
+
+            // If searched by title, result is in results array
+            JsonNode pageNode = root;
+            if (root.has("results")) {
+                JsonNode results = root.path("results");
+                if (!results.isArray() || results.size() == 0) {
+                    throw new McpToolException("Page not found with title '" + title + "' in space '" + spaceKey + "'");
+                }
+                pageNode = results.get(0);
+            }
+
+            ObjectNode simplified = ResponseTransformer.simplifyPageNode(pageNode, baseUrl, convertToMarkdown);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("metadata", simplified);
+            return mapper.writeValueAsString(result);
+        } catch (McpToolException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform page response: " + e.getMessage());
+        }
     }
 
     private static String encode(String s) {

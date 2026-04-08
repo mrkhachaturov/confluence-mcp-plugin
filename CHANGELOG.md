@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.1.0] - 2026-04-09
+
+### Added
+
+- **Storage-to-Markdown conversion** -- all read tools now convert Confluence storage format (XHTML) to clean Markdown for AI consumption. Full [Confluence storage format](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html) support: 20+ macro types (code, info, note, warning, tip, panel, expand, noformat, jira, status, anchor, toc, include, children, attachments, blog-posts, profile), images, links, emoticons, task lists, layouts, placeholders. Uses jsoup XML parser + flexmark-html2md-converter
+- **Full page URLs in all responses** -- every tool response includes `url` field with full Server/DC URL (`{baseUrl}/pages/viewpage.action?pageId={id}`), matching upstream's behavior. AI clients now get clickable links
+- **Response transformation** -- `ResponseTransformer` implements upstream's `to_simplified_dict()` whitelist approach. Each tool returns exactly the fields upstream returns: `{id, title, type, url, space, author, version, content, ancestors}`
+- **Upstream-compatible response formats** for all 16 non-attachment tools:
+  - `search` → flat list of simplified page dicts (was: raw nested Confluence API response)
+  - `get_page` → `{"metadata": {...}}` wrapper with markdown content
+  - `get_page_children` → `{parent_id, count, results: [...]}`
+  - `get_comments` → flat list of simplified comment dicts with markdown bodies
+  - `create_page/update_page` → `{"message": "...", "page": {...}}`
+  - `delete_page` → `{"success": true, "message": "..."}`
+  - `add_comment/reply_to_comment` → `{"success": true, "comment": {...}}`
+  - `get_labels/add_label` → flat list of `{id, name, prefix}`
+  - `search_user` → flat list of `{display_name, email}`
+  - `get_page_diff` → JSON `{page_id, from_version, to_version, diff}`
+- **Timestamp formatting** -- ISO 8601 timestamps converted to `YYYY-MM-DD HH:MM:SS` matching upstream's `TimestampMixin`
+- **siteSearch fallback** -- search tool tries `siteSearch ~ "query"` first, falls back to `text ~ "query"` on error (mirrors upstream)
+
+### Changed
+
+- Version bump to 1.1.0
+- Tools now use `client.getRaw()` + `ResponseTransformer` (whitelist) instead of `client.get()` + `ResponseTrimmer` (blacklist)
+- `ConfluenceRestClient.getBaseUrl()` is now public, with `getRaw()`/`postRaw()`/`putRaw()`/`deleteRaw()` methods for untrimmed responses
+- Comments fetched with `body.view` (rendered HTML) instead of `body.storage` (raw XHTML), matching upstream
+- E2E tests updated to assert upstream-compatible response formats (URL presence, metadata wrapper, search result structure)
+
+### Dependencies
+
+- Added `flexmark-html2md-converter` 0.64.8 (HTML → Markdown conversion)
+- Added `jsoup` 1.22.1 as provided scope (Confluence bundles it; used for storage format XML parsing)
+
 ## [1.0.1] - 2026-04-07
 
 ### Added

@@ -3,13 +3,20 @@ package com.atlassian.mcp.plugin.tools.comments;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.reply_to_comment()
+ * Returns: {success, message, comment: {simplified comment dict}}
+ */
 public class ReplyToCommentTool implements McpTool {
     private final ConfluenceRestClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -59,9 +66,19 @@ public class ReplyToCommentTool implements McpTool {
         )));
         try {
             String jsonBody = mapper.writeValueAsString(requestBody);
-            return client.post("/rest/api/content", jsonBody, authHeader);
+            String rawJson = client.postRaw("/rest/api/content", jsonBody, authHeader);
+
+            // Transform to upstream format: {success, message, comment}
+            JsonNode raw = mapper.readTree(rawJson);
+            ObjectNode result = mapper.createObjectNode();
+            result.put("success", true);
+            result.put("message", "Reply added successfully");
+            result.set("comment", ResponseTransformer.simplifyCommentNode(raw, true));
+            return mapper.writeValueAsString(result);
+        } catch (McpToolException e) {
+            throw e;
         } catch (Exception e) {
-            throw new McpToolException("Failed to serialize request: " + e.getMessage());
+            throw new McpToolException("Failed to reply to comment: " + e.getMessage());
         }
     }
 }

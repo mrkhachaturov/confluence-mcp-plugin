@@ -2,13 +2,19 @@ package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.HashMap;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.move_page()
+ * Returns: {message, page: {simplified page dict}}
+ */
 public class MovePageTool implements McpTool {
     private final ConfluenceRestClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -57,6 +63,18 @@ public class MovePageTool implements McpTool {
         // Confluence move API: PUT /rest/api/content/{id}/move/{position}/{targetId}
         String targetId = targetParentId != null ? targetParentId : "0";
         String path = "/rest/api/content/" + pageId + "/move/" + position + "/" + targetId;
-        return client.put(path, "{}", authHeader);
+        String rawJson = client.putRaw(path, "{}", authHeader);
+
+        // Transform to upstream format: {message, page}
+        try {
+            String baseUrl = client.getBaseUrl();
+            JsonNode raw = mapper.readTree(rawJson);
+            ObjectNode result = mapper.createObjectNode();
+            result.put("message", "Page moved successfully");
+            result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, false));
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to move page: " + e.getMessage());
+        }
     }
 }

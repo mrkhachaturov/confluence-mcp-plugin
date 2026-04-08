@@ -2,15 +2,25 @@ package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_page_children()
+ * Returns: {parent_id, count, limit_requested, start_requested, results: [{simplified page dict}, ...]}
+ */
 public class GetPageChildrenTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetPageChildrenTool(ConfluenceRestClient client) {
         this.client = client;
@@ -48,25 +58,41 @@ public class GetPageChildrenTool implements McpTool {
         if (parentId == null || parentId.isBlank()) {
             throw new McpToolException("'parent_id' parameter is required");
         }
-        String expand = (String) args.getOrDefault("expand", "version");
         int limit = Math.min(getInt(args, "limit", 25), 50);
         boolean includeContent = getBoolean(args, "include_content", false);
         boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);
         int start = getInt(args, "start", 0);
-        boolean includeFolders = getBoolean(args, "include_folders", true);
 
-        StringBuilder query = new StringBuilder();
-        String sep = "?";
-        if (expand != null && !expand.isBlank()) {
-            query.append(sep).append("expand=").append(encode(expand));
-            sep = "&";
+        String expand = includeContent ? "version,body.storage,space" : "version,space";
+
+        String rawJson = client.getRaw("/rest/api/content/" + parentId + "/child/page"
+                + "?expand=" + encode(expand)
+                + "&limit=" + limit
+                + "&start=" + start, authHeader);
+
+        // Transform to upstream format
+        try {
+            String baseUrl = client.getBaseUrl();
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode childPages = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode child : results) {
+                    childPages.add(ResponseTransformer.simplifyPageNode(child, baseUrl, convertToMarkdown));
+                }
+            }
+
+            ObjectNode output = mapper.createObjectNode();
+            output.put("parent_id", parentId);
+            output.put("count", childPages.size());
+            output.put("limit_requested", limit);
+            output.put("start_requested", start);
+            output.set("results", childPages);
+            return mapper.writeValueAsString(output);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform children response: " + e.getMessage());
         }
-        query.append(sep).append("limit=").append(limit);
-        sep = "&";
-        query.append(sep).append("start=").append(start);
-        sep = "&";
-
-        return client.get("/rest/api/content/" + parentId + "/child/page" + query, authHeader);
     }
 
     private static String encode(String s) {

@@ -140,7 +140,7 @@ public class ConfluenceRestClient {
         }
     }
 
-    private String getBaseUrl() {
+    public String getBaseUrl() {
         String override = pluginConfig.getConfluenceBaseUrlOverride();
         if (override != null && !override.isBlank()) {
             return override.replaceAll("/+$", "");
@@ -169,15 +169,47 @@ public class ConfluenceRestClient {
         return builder.build();
     }
 
+    /**
+     * GET that returns raw (untrimmed) JSON. Used by tools that apply their own
+     * response transformation via ResponseTransformer.
+     */
+    public String getRaw(String path, String authHeader) throws McpToolException {
+        return executeHttp(buildRequest(path, authHeader, "GET", null));
+    }
+
+    /**
+     * POST that returns raw (untrimmed) JSON.
+     */
+    public String postRaw(String path, String body, String authHeader) throws McpToolException {
+        return executeHttp(buildRequest(path, authHeader, "POST", body));
+    }
+
+    /**
+     * PUT that returns raw (untrimmed) JSON.
+     */
+    public String putRaw(String path, String body, String authHeader) throws McpToolException {
+        return executeHttp(buildRequest(path, authHeader, "PUT", body));
+    }
+
+    /**
+     * DELETE that returns raw (untrimmed) JSON.
+     */
+    public String deleteRaw(String path, String authHeader) throws McpToolException {
+        return executeHttp(buildRequest(path, authHeader, "DELETE", null));
+    }
+
     private String execute(HttpRequest request) throws McpToolException {
+        return ResponseTrimmer.trim(executeHttp(request));
+    }
+
+    private String executeHttp(HttpRequest request) throws McpToolException {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 throw new McpToolException(
                         "Confluence API returned HTTP " + response.statusCode() + ": " + response.body());
             }
-            // Trim response to match upstream mcp-atlassian's to_simplified_dict() output
-            return ResponseTrimmer.trim(response.body());
+            return response.body();
         } catch (IOException e) {
             throw new McpToolException("Failed to connect to Confluence REST API: " + e.getMessage(), e);
         } catch (InterruptedException e) {

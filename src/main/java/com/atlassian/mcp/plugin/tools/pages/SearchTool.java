@@ -2,15 +2,26 @@ package com.atlassian.mcp.plugin.tools.pages;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
+import com.atlassian.mcp.plugin.StorageToMarkdown;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.search()
+ * Returns: [{id, title, type, url, space, author, version, attachments, content, ancestors}, ...]
+ */
 public class SearchTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public SearchTool(ConfluenceRestClient client) {
         this.client = client;
@@ -47,9 +58,10 @@ public class SearchTool implements McpTool {
         int limit = Math.min(getInt(args, "limit", 10), 50);
         String spacesFilter = (String) args.get("spaces_filter");
 
-        // If it doesn't look like CQL, wrap as siteSearch
+        // If it doesn't look like CQL, wrap as siteSearch (mirrors upstream)
+        boolean isSimpleQuery = !searchQuery.contains("=") && !searchQuery.contains("~");
         String cql = searchQuery;
-        if (!searchQuery.contains("=") && !searchQuery.contains("~")) {
+        if (isSimpleQuery) {
             cql = "siteSearch ~ \"" + searchQuery.replace("\"", "\\\"") + "\"";
         }
 
@@ -65,9 +77,67 @@ public class SearchTool implements McpTool {
             cql = "(" + cql + ") AND " + spaceClause;
         }
 
-        return client.get("/rest/api/search?cql=" + encode(cql)
-                + "&limit=" + limit
-                + "&expand=content.space,content.version", authHeader);
+        // Upstream fallback: siteSearch → text search on error
+        String rawJson;
+        try {
+            rawJson = client.getRaw("/rest/api/search?cql=" + encode(cql)
+                    + "&limit=" + limit
+                    + "&expand=content.space,content.version,content.body.storage", authHeader);
+        } catch (McpToolException e) {
+            if (isSimpleQuery) {
+                // Fallback to text search (mirrors upstream siteSearch fallback)
+                cql = "text ~ \"" + searchQuery.replace("\"", "\\\"") + "\"";
+                if (spacesFilter != null && !spacesFilter.isBlank()) {
+                    String[] spaces = spacesFilter.split(",");
+                    StringBuilder spaceClause = new StringBuilder("space in (");
+                    for (int i = 0; i < spaces.length; i++) {
+                        if (i > 0) spaceClause.append(",");
+                        spaceClause.append("\"").append(spaces[i].trim()).append("\"");
+                    }
+                    spaceClause.append(")");
+                    cql = "(" + cql + ") AND " + spaceClause;
+                }
+                rawJson = client.getRaw("/rest/api/search?cql=" + encode(cql)
+                        + "&limit=" + limit
+                        + "&expand=content.space,content.version,content.body.storage", authHeader);
+            } else {
+                throw e;
+            }
+        }
+
+        // Transform to upstream format: flat list of simplified page dicts
+        try {
+            String baseUrl = client.getBaseUrl();
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode output = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode result : results) {
+                    JsonNode content = result.path("content");
+                    if (!content.isMissingNode() && content.has("id")) {
+                        ObjectNode page = ResponseTransformer.simplifyPageNode(content, baseUrl, true);
+
+                        // Override content with search excerpt if available
+                        String excerpt = result.path("excerpt").asText("");
+                        if (!excerpt.isBlank()) {
+                            // Clean up search highlight markers
+                            excerpt = excerpt.replace("@@@hl@@@", "").replace("@@@endhl@@@", "");
+                            ObjectNode contentNode = mapper.createObjectNode();
+                            contentNode.put("value", excerpt);
+                            contentNode.put("format", "excerpt");
+                            page.set("content", contentNode);
+                        }
+
+                        output.add(page);
+                    }
+                }
+            }
+
+            return mapper.writeValueAsString(output);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform search results: " + e.getMessage());
+        }
     }
 
     private static String encode(String s) {

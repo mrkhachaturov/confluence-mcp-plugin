@@ -2,13 +2,22 @@ package com.atlassian.mcp.plugin.tools.labels;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.get_labels()
+ * Returns: [{id, name, prefix, label}, ...]
+ */
 public class GetLabelsTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public GetLabelsTool(ConfluenceRestClient client) {
         this.client = client;
@@ -41,6 +50,23 @@ public class GetLabelsTool implements McpTool {
             throw new McpToolException("'page_id' parameter is required");
         }
 
-        return client.get("/rest/api/content/" + pageId + "/label", authHeader);
+        String rawJson = client.getRaw("/rest/api/content/" + pageId + "/label", authHeader);
+
+        // Transform to upstream format: flat list of simplified label dicts
+        try {
+            JsonNode root = mapper.readTree(rawJson);
+            JsonNode results = root.path("results");
+            ArrayNode output = mapper.createArrayNode();
+
+            if (results.isArray()) {
+                for (JsonNode label : results) {
+                    output.add(ResponseTransformer.simplifyLabelNode(label));
+                }
+            }
+
+            return mapper.writeValueAsString(output);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to transform labels response: " + e.getMessage());
+        }
     }
 }

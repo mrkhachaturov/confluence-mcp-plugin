@@ -3,12 +3,19 @@ package com.atlassian.mcp.plugin.tools.pages;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Mirrors upstream: confluence_mcp.delete_page()
+ * Returns: {success: true, message: "Page {id} deleted successfully"}
+ */
 public class DeletePageTool implements McpTool {
     private final ConfluenceRestClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public DeletePageTool(ConfluenceRestClient client) {
         this.client = client;
@@ -41,6 +48,16 @@ public class DeletePageTool implements McpTool {
             throw new McpToolException("'page_id' parameter is required");
         }
 
-        return client.delete("/rest/api/content/" + pageId, authHeader);
+        client.delete("/rest/api/content/" + pageId, authHeader);
+
+        // Return upstream format: {success, message}
+        try {
+            ObjectNode result = mapper.createObjectNode();
+            result.put("success", true);
+            result.put("message", "Page " + pageId + " deleted successfully");
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            throw new McpToolException("Failed to serialize response: " + e.getMessage());
+        }
     }
 }

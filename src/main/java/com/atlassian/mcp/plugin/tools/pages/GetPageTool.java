@@ -29,7 +29,9 @@ public class GetPageTool implements McpTool {
 
     @Override
     public String description() {
-        return "Get content of a specific Confluence page by its ID, or by its title and space key.";
+        return "Get content of a specific Confluence page by its ID, or by its title and space key. "
+                + "By default, page content is converted from Confluence storage format to clean Markdown for easy reading. "
+                + "The response includes full page URL, space info, author, version, and content.";
     }
 
     @Override

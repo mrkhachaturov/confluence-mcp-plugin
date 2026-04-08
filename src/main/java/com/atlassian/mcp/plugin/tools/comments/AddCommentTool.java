@@ -29,7 +29,8 @@ public class AddCommentTool implements McpTool {
 
     @Override
     public String description() {
-        return "Add a comment to a Confluence page.";
+        return "Add a comment to a Confluence page. Comment body is written in Markdown and automatically converted "
+                + "to Confluence format. Supports bold, italic, code, links, lists, and other standard Markdown formatting.";
     }
 
     @Override

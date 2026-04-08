@@ -29,7 +29,8 @@ public class ReplyToCommentTool implements McpTool {
 
     @Override
     public String description() {
-        return "Reply to an existing comment thread on a Confluence page.";
+        return "Reply to an existing comment thread on a Confluence page. Reply body is written in Markdown and "
+                + "automatically converted to Confluence format.";
     }
 
     @Override

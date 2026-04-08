@@ -29,7 +29,16 @@ public class UpdatePageTool implements McpTool {
 
     @Override
     public String description() {
-        return "Update an existing Confluence page.";
+        return "Update an existing Confluence page. Same Markdown features as create_page — all auto-converted "
+                + "to native Confluence elements:\n"
+                + "- Callout panels: > [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING] (with optional |title:...)\n"
+                + "- Status badges: {status:Text|color} (green, red, yellow, blue, grey)\n"
+                + "- Task lists: - [x] / - [ ] → native checkboxes\n"
+                + "- Table of contents: {toc}\n"
+                + "- Expandable sections: <details><summary>Title</summary>content</details>\n"
+                + "- All standard Markdown: headings, tables, code blocks, links, images, lists, bold, italic\n\n"
+                + "IMPORTANT: This replaces the entire page content. Read the page first (get_page) if you need "
+                + "to preserve existing content. Do NOT start with '# Title' — Confluence shows the title separately.";
     }
 
     @Override
@@ -39,7 +48,7 @@ public class UpdatePageTool implements McpTool {
                 "properties", Map.of(
                         "page_id", Map.of("type", "string", "description", "The ID of the page to update"),
                         "title", Map.of("type", "string", "description", "The new title of the page"),
-                        "content", Map.of("type", "string", "description", "The new content of the page. Format depends on content_format parameter"),
+                        "content", Map.of("type", "string", "description", "The new page content in Markdown. All rich features (panels, status badges, tasks, TOC, expand) work in Markdown — see tool description. Do NOT start with '# Title'."),
                         "is_minor_edit", Map.of("type", "boolean", "description", "Whether this is a minor edit", "default", false),
                         "version_comment", Map.of("type", "string", "description", "Optional comment for this version"),
                         "parent_id", Map.of("type", "string", "description", "Optional the new parent page ID"),

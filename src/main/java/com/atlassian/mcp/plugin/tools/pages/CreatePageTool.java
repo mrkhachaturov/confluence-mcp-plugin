@@ -29,7 +29,33 @@ public class CreatePageTool implements McpTool {
 
     @Override
     public String description() {
-        return "Create a new Confluence page.";
+        return "Create a new Confluence page. Write content in Markdown — it is automatically converted "
+                + "to rich Confluence format with native panels, status badges, task lists, and more.\n\n"
+                + "IMPORTANT: Do NOT start content with '# Title' — Confluence displays the page title separately.\n\n"
+                + "Supported Markdown features (all auto-converted to native Confluence elements):\n\n"
+                + "FORMATTING: headings (## H2, ### H3), **bold**, *italic*, ~~strikethrough~~, `inline code`, "
+                + "```code blocks``` (with language), tables, links, images, blockquotes, numbered/bulleted lists, horizontal rules (---)\n\n"
+                + "TASK LISTS (native Confluence checkboxes):\n"
+                + "  - [x] Completed item\n"
+                + "  - [ ] Pending item\n\n"
+                + "CALLOUT PANELS (colored Confluence panels for highlighting key information):\n"
+                + "  > [!NOTE]                    → blue info panel (context, background, references)\n"
+                + "  > [!TIP]                     → green tip panel (advice, recommendations, best practices)\n"
+                + "  > [!IMPORTANT]               → yellow panel (key decisions, requirements, deadlines)\n"
+                + "  > [!WARNING]                 → red panel (risks, compliance issues, critical constraints)\n"
+                + "  > [!NOTE|title:Custom Title]  → panel with custom title\n"
+                + "  Panels support nested formatting: bold, lists, links, code inside them.\n\n"
+                + "STATUS BADGES (colored inline labels): {status:Text|color}\n"
+                + "  Colors: green, red, yellow, blue, grey\n"
+                + "  Examples: {status:Approved|green}, {status:Draft|grey}, {status:Pending Review|yellow}, "
+                + "{status:Urgent|red}, {status:On Hold|blue}, {status:Final|green}, {status:Rejected|red}\n\n"
+                + "TABLE OF CONTENTS: Place {toc} or [TOC] on its own line to insert an auto-generated table of contents.\n\n"
+                + "EXPANDABLE SECTIONS (click-to-expand blocks for supplementary details):\n"
+                + "  <details><summary>Section title</summary>Hidden content revealed on click</details>\n\n"
+                + "NOT SUPPORTED in Markdown (use content_format='storage' if needed): "
+                + "@user mentions, date pickers, Jira issue links, page layout columns, page includes.\n\n"
+                + "Use these features to create professional pages: procedures, policies, meeting notes, "
+                + "project plans, status reports, approval memos, training materials, and any business documentation.";
     }
 
     @Override
@@ -39,9 +65,9 @@ public class CreatePageTool implements McpTool {
                 "properties", Map.of(
                         "space_key", Map.of("type", "string", "description", "The key of the space to create the page in (usually a short uppercase code like 'DEV', 'TEAM', or 'DOC')"),
                         "title", Map.of("type", "string", "description", "The title of the page"),
-                        "content", Map.of("type", "string", "description", "The content of the page. Format depends on content_format parameter. Can be Markdown (default), wiki markup, or storage format"),
+                        "content", Map.of("type", "string", "description", "Page content in Markdown. All features described in the tool description work in Markdown — panels, status badges, task lists, expandable sections are all auto-converted to native Confluence elements. Do NOT start with '# Title' — Confluence displays the title separately. Valid status colors: green, red, yellow, blue, grey. Panels support nested formatting (bold, lists, links) inside them."),
                         "parent_id", Map.of("type", "string", "description", "(Optional) parent page ID. If provided, this page will be created as a child of the specified page"),
-                        "content_format", Map.of("type", "string", "description", "(Optional) The format of the content parameter. Options: 'markdown' (default), 'wiki', or 'storage'. Wiki format uses Confluence wiki markup syntax", "default", "markdown"),
+                        "content_format", Map.of("type", "string", "description", "(Optional) Content format. Use 'markdown' (default) for all normal pages — panels, status badges, tasks, and expand are all supported in Markdown. Only use 'storage' if you need advanced Confluence macros not covered by Markdown (e.g., Jira issue tables, page includes, layout columns). 'wiki' uses legacy Confluence wiki markup.", "default", "markdown"),
                         "enable_heading_anchors", Map.of("type", "boolean", "description", "(Optional) Whether to enable automatic heading anchor generation. Only applies when content_format is 'markdown'", "default", false),
                         "emoji", Map.of("type", "string", "description", "(Optional) Page title emoji (icon shown in navigation). Can be any emoji character like '📝', '🚀', '📚'. Set to null/None to remove.")
                 ),

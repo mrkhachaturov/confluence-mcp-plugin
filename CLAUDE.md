@@ -138,6 +138,12 @@ Tools call Confluence REST API directly via `ConfluenceRestClient.get/post/put/d
 **Markdown → Storage** (write tools: `create_page`, `update_page`, `add_comment`, `reply_to_comment`):
 
 - `MarkdownToStorage` using flexmark-java 0.64.8 with GFM extensions (tables, strikethrough, task lists, autolinks)
+- Extended Markdown syntax auto-converted to native Confluence macros:
+  - GitHub alerts (`> [!NOTE/TIP/IMPORTANT/WARNING]`) → info/tip/note/warning panels
+  - Status labels (`{status:Text|color}`) → status badge macros
+  - Table of contents (`{toc}` or `[TOC]`) → TOC macro
+  - Task lists (`- [x]` / `- [ ]`) → native `ac:task-list`
+  - Expand sections (`<details><summary>`) → expand macro
 - Three content formats: `markdown` (default, converted), `wiki` (passed as-is), `storage` (passed as-is)
 
 **Storage → Markdown** (read tools: `get_page`, `get_comments`, `get_page_children`, `get_page_history`):
@@ -264,6 +270,44 @@ The `confluence-10.2.7.jar` contains classes compiled for Java 21 (class version
 
 ### UserAccessor for group membership
 Confluence uses `com.atlassian.confluence.user.UserAccessor.hasMembership(groupName, username)` for group checks — not Jira's `GroupManager`.
+
+### Flexmark: two settings for Confluence XML pass-through
+
+Flexmark-java by default HTML-escapes namespaced tags (`<ac:*>`, `<ri:*>`). Two settings fix this:
+
+1. **`Parser.HTML_ALLOW_NAME_SPACE = true`** — enables XML namespace prefix in OPENTAG/CLOSETAG patterns. Without this, inline `<ac:structured-macro>` inside paragraphs is escaped. This is the critical setting. See `Parsing.java:354-399`.
+
+2. **`Parser.HTML_BLOCK_TAGS` += Confluence tags** — registers `ac:structured-macro`, `ac:task-list`, etc. as block-level HTML (Type 6 detection). Without this, block macros fall to Type 7 which is less reliable. See `HtmlBlockParser.java:79`, `Parser.java:118-183`.
+
+With both settings, Confluence XML injected during Markdown pre-processing passes through flexmark completely untouched — no placeholders, no escaping, no post-processing.
+
+Key files in flexmark source (`.upstream/flexmark-java/`):
+
+- `Parser.java:213` — `HTML_ALLOW_NAME_SPACE` DataKey (default: **false**)
+- `Parser.java:118-183` — `HTML_BLOCK_TAGS` configurable list
+- `Parsing.java:354-399` — OPENTAG/CLOSETAG patterns conditional on `allowNameSpace`
+- `HtmlBlockParser.java:79` — block detection pattern with `XML_NAMESPACE`
+- `CoreNodeRenderer.java:498-553` — render pass-through logic (`rawPre()` when not escaping)
+
+### Upstream reference libraries
+
+- `.upstream/flexmark-java/` — flexmark-java 0.64.8 source. We use: core parser, html renderer, html2md-converter, GFM extensions. Key: `HTML_ALLOW_NAME_SPACE` and `HTML_BLOCK_TAGS` for Confluence XML
+- `.upstream/commonmark-java/` — commonmark-java 0.28.0 source. Reference only — we don't use it. Missing HTML-to-Markdown converter (blocker). Has nice GitHub alerts extension as reference
+- `.upstream/mcp-atlassian/` — upstream Python MCP project. Source of truth for tool definitions
+- `.upstream/confluence-markdown-exporter/` — reference for comprehensive Confluence storage format element handling
+
+## Future Architecture: Specialized Page Creation Tools
+
+The plugin will have **multiple page creation tools** beyond the generic `create_page`. Each specialized tool targets a specific business scenario with tailored descriptions, default structures, and macro usage guidance. Examples:
+
+- `create_meeting_notes` — pre-structured with attendees, agenda, action items, decisions
+- `create_procedure` — numbered steps, warning panels for safety, approval status badges
+- `create_status_report` — TOC, status badges, expandable details, risk panels
+- `create_policy` — effective date, approval workflow, revision history table
+
+All tools share `MarkdownToStorage` for content conversion but provide richer tool descriptions that guide AI agents to use the right Confluence features (panels, status labels, task lists, expand sections) for each document type. This works for users **without** skills/plugins installed — the intelligence is in the tool description, not in client-side configuration.
+
+When adding new specialized tools, register any new Confluence macro tags they need in `Parser.HTML_BLOCK_TAGS` (see flexmark lesson above).
 
 ## Critical Rules
 

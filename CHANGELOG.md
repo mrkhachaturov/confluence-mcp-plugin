@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.1] - 2026-04-09
+
+### Added
+
+- **Extended Markdown syntax** auto-converted to native Confluence macros:
+  - GitHub alerts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`) with optional custom title (`> [!NOTE|title:Custom]`) → native info/tip/note/warning panels
+  - Status labels (`{status:Text|color}`) → native status badge macros. Colors: green, red, yellow, blue, grey
+  - Table of contents (`{toc}` or `[TOC]`) → native TOC macro
+  - Expandable sections (`<details><summary>Title</summary>content</details>`) → native expand macro
+- **Native Confluence task lists** — `- [x]` / `- [ ]` now convert to `ac:task-list` with proper complete/incomplete status (was: broken `<li class="task-list-item">` HTML)
+- **Rich tool descriptions** — `create_page` and `update_page` descriptions document all supported Markdown features with examples, valid status colors, and guidance for business content (procedures, policies, meeting notes, reports)
+
+### Changed
+
+- **MarkdownToStorage rewritten** using proper flexmark-java configuration:
+  - `Parser.HTML_ALLOW_NAME_SPACE = true` — enables XML namespace recognition for inline `<ac:*>` tags
+  - `Parser.HTML_BLOCK_TAGS` extended with Confluence tags — enables Type 6 block detection
+  - No placeholder hacks needed — Confluence XML passes through flexmark untouched
+- Tool descriptions explicitly list unsupported features (mentions, dates, Jira links) to prevent AI hallucination
+- Tool descriptions advise against starting content with `# Title` (Confluence shows title separately)
+
+### Fixed
+
+- Diamond symbols (◆) no longer appear in rendered pages — caused by null-byte placeholder mechanism (now removed)
+- Status badges now render correctly inline within paragraphs
+
 ## [1.1.0] - 2026-04-09
 
 ### Added

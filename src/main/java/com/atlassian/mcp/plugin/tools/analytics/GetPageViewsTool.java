@@ -50,6 +50,7 @@ public class GetPageViewsTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         boolean includeTitle = getBoolean(args, "include_title", true);
 
         String rawJson = client.getRaw("/rest/api/analytics/content/" + pageId + "/views", authHeader);

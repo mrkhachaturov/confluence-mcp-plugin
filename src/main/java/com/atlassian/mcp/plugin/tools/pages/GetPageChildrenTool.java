@@ -58,6 +58,7 @@ public class GetPageChildrenTool implements McpTool {
         if (parentId == null || parentId.isBlank()) {
             throw new McpToolException("'parent_id' parameter is required");
         }
+        parentId = McpTool.resolvePageId(parentId);
         int limit = Math.min(getInt(args, "limit", 25), 50);
         boolean includeContent = getBoolean(args, "include_content", false);
         boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);

@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Mirrors upstream: confluence_mcp.get_page()
- * Returns: {"metadata": {simplified page dict}} when include_metadata=true
+ * Returns: {"page": {simplified page dict}} when include_metadata=true
  */
 public class GetPageTool implements McpTool {
     private final ConfluenceRestClient client;
@@ -62,6 +62,7 @@ public class GetPageTool implements McpTool {
 
         String rawJson;
         if (pageId != null && !pageId.isBlank()) {
+            pageId = McpTool.resolvePageId(pageId);
             rawJson = client.getRaw("/rest/api/content/" + pageId + "?expand=" + encode(expand), authHeader);
         } else if (title != null && !title.isBlank() && spaceKey != null && !spaceKey.isBlank()) {
             rawJson = client.getRaw("/rest/api/content?title=" + encode(title)
@@ -89,7 +90,7 @@ public class GetPageTool implements McpTool {
             ObjectNode simplified = ResponseTransformer.simplifyPageNode(pageNode, baseUrl, convertToMarkdown);
 
             ObjectNode result = mapper.createObjectNode();
-            result.set("metadata", simplified);
+            result.set("page", simplified);
             return mapper.writeValueAsString(result);
         } catch (McpToolException e) {
             throw e;

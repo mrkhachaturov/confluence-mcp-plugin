@@ -46,6 +46,7 @@ public class GetAttachmentsTool implements McpTool {
         if (contentId == null || contentId.isBlank()) {
             throw new McpToolException("'content_id' parameter is required");
         }
+        contentId = McpTool.resolvePageId(contentId);
         int start = getInt(args, "start", 0);
         int limit = Math.min(getInt(args, "limit", 50), 100);
         String filename = (String) args.get("filename");

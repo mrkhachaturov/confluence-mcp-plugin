@@ -46,6 +46,7 @@ public class DownloadContentAttachmentsTool implements McpTool {
         if (contentId == null || contentId.isBlank()) {
             throw new McpToolException("'content_id' parameter is required");
         }
+        contentId = McpTool.resolvePageId(contentId);
 
         String listJson = client.get("/rest/api/content/" + contentId + "/child/attachment?limit=100", authHeader);
         try {

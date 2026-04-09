@@ -45,7 +45,7 @@ public class McpEndpointE2ETest {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    /** All 23 upstream tool names (source of truth). */
+    /** All 28 tool names (23 upstream + 5 new in v1.2). */
     private static final Set<String> ALL_UPSTREAM_TOOLS = Set.of(
             "search", "get_page", "get_page_children", "create_page", "update_page",
             "delete_page", "move_page", "get_page_history", "get_page_diff",
@@ -55,7 +55,9 @@ public class McpEndpointE2ETest {
             "get_page_views",
             "upload_attachment", "upload_attachments", "get_attachments",
             "download_attachment", "download_content_attachments",
-            "delete_attachment", "get_page_images"
+            "delete_attachment", "get_page_images",
+            "list_spaces",
+            "append_to_page", "prepend_to_page", "convert_content", "replace_section"
     );
 
     /** Page ID created during CRUD lifecycle test, cleaned up at end. */
@@ -164,6 +166,44 @@ public class McpEndpointE2ETest {
         assertNotNull("Should have content text", text);
     }
 
+    @Test
+    public void t22_listSpaces() throws Exception {
+        JsonNode result = callTool("list_spaces", Map.of("limit", 5));
+
+        assertFalse("Should not error", isError(result));
+        String text = getContentText(result);
+        JsonNode parsed = MAPPER.readTree(text);
+        assertTrue("Should return array", parsed.isArray());
+        assertTrue("Should have at least 1 space", parsed.size() >= 1);
+
+        JsonNode first = parsed.get(0);
+        assertTrue("Space should have key", first.has("key"));
+        assertTrue("Space should have name", first.has("name"));
+        assertTrue("Space should have type", first.has("type"));
+        assertTrue("Space should have url", first.has("url"));
+        assertTrue("URL should be full URL",
+                first.path("url").asText().startsWith("http"));
+
+        System.out.println("[e2e] list_spaces returned " + parsed.size() + " spaces");
+    }
+
+    @Test
+    public void t23_convertContent() throws Exception {
+        JsonNode result = callTool("convert_content", Map.of(
+                "content", "## Hello\n\nSome **bold** text.\n\n> [!NOTE]\n> Important info"
+        ));
+
+        assertFalse("Should not error", isError(result));
+        String text = getContentText(result);
+        JsonNode parsed = MAPPER.readTree(text);
+        assertTrue("Should have content wrapper", parsed.has("content"));
+        String storage = parsed.path("content").path("value").asText();
+        assertTrue("Should contain h2 tag", storage.contains("<h2"));
+        assertTrue("Should contain strong tag", storage.contains("<strong>"));
+
+        System.out.println("[e2e] convert_content produces valid storage format");
+    }
+
     // ── Response Trimming Tests ──────────────────────────────────────
 
     @Test
@@ -226,10 +266,10 @@ public class McpEndpointE2ETest {
         assertTrue("Response should contain page ID",
                 text.contains(createdPageId));
 
-        // Verify upstream response format: {"metadata": {"id", "title", "url", ...}}
+        // Verify upstream response format: {"page": {"id", "title", "url", ...}}
         JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should have metadata wrapper", parsed.has("metadata"));
-        JsonNode metadata = parsed.path("metadata");
+        assertTrue("Should have page wrapper", parsed.has("page"));
+        JsonNode metadata = parsed.path("page");
         assertTrue("Metadata should have url", metadata.has("url"));
         assertTrue("URL should be full URL",
                 metadata.path("url").asText().startsWith("http"));
@@ -265,6 +305,107 @@ public class McpEndpointE2ETest {
                 "name", "e2etest"
         ));
         assertFalse("Add label should not error: " + getContentText(result), isError(result));
+    }
+
+    @Test
+    public void t45_getPageDiff_markdownFormat() throws Exception {
+        Assume.assumeTrue("No page created", createdPageId != null);
+
+        // Update the page to create version 2
+        callTool("update_page", Map.of(
+                "page_id", createdPageId,
+                "title", "[E2E Test] Updated Page",
+                "content", "Updated content for diff test.",
+                "content_format", "storage"
+        ));
+
+        // Get diff between version 1 and 2
+        JsonNode result = callTool("get_page_diff", Map.of(
+                "page_id", createdPageId,
+                "from_version", 1,
+                "to_version", 2
+        ));
+
+        assertFalse("Diff should not error: " + getContentText(result), isError(result));
+        String text = getContentText(result);
+        JsonNode parsed = MAPPER.readTree(text);
+        assertTrue("Should have diff field", parsed.has("diff"));
+
+        String diff = parsed.path("diff").asText();
+        // Markdown diff should NOT contain internal Confluence identifiers
+        assertFalse("Diff should not contain ac:macro-id",
+                diff.contains("ac:macro-id"));
+        assertFalse("Diff should not contain ac:task-id",
+                diff.contains("ac:task-id"));
+
+        System.out.println("[e2e] get_page_diff returned clean markdown diff");
+    }
+
+    @Test
+    public void t46_updatePage_optimisticLocking() throws Exception {
+        Assume.assumeTrue("No page created", createdPageId != null);
+
+        // Try to update with a wrong expected_version (should fail)
+        JsonNode result = callTool("update_page", Map.of(
+                "page_id", createdPageId,
+                "title", "[E2E Test] Should Fail",
+                "content", "This should not succeed.",
+                "expected_version", 999
+        ));
+
+        assertTrue("Should error on version mismatch", isError(result));
+        String text = getContentText(result);
+        assertTrue("Error should mention version mismatch",
+                text.contains("modified since you last read it"));
+
+        System.out.println("[e2e] Optimistic locking: version mismatch correctly rejected");
+    }
+
+    @Test
+    public void t47_appendAndPrependToPage() throws Exception {
+        Assume.assumeTrue("No page created", createdPageId != null);
+
+        // Append content
+        JsonNode appendResult = callTool("append_to_page", Map.of(
+                "page_id", createdPageId,
+                "content", "**Appended section** content."
+        ));
+        assertFalse("Append should not error: " + getContentText(appendResult), isError(appendResult));
+        String appendText = getContentText(appendResult);
+        assertTrue("Should have success message", appendText.contains("appended"));
+
+        // Prepend content
+        JsonNode prependResult = callTool("prepend_to_page", Map.of(
+                "page_id", createdPageId,
+                "content", "**Prepended alert** at top."
+        ));
+        assertFalse("Prepend should not error: " + getContentText(prependResult), isError(prependResult));
+        String prependText = getContentText(prependResult);
+        assertTrue("Should have success message", prependText.contains("prepended"));
+
+        System.out.println("[e2e] append/prepend to page: OK");
+    }
+
+    @Test
+    public void t47b_createPageWithLabels() throws Exception {
+        JsonNode result = callTool("create_page", Map.of(
+                "space_key", SPACE_KEY,
+                "title", "[E2E Test] Page with labels " + System.currentTimeMillis(),
+                "content", "Page created with labels.",
+                "content_format", "storage",
+                "labels", List.of("e2etest", "automated")
+        ));
+
+        assertFalse("Create should not error: " + getContentText(result), isError(result));
+        String text = getContentText(result);
+        JsonNode parsed = MAPPER.readTree(text);
+        assertTrue("Should have labels_added", parsed.has("labels_added"));
+
+        // Clean up
+        String pageId = parsed.path("page").path("id").asText();
+        callTool("delete_page", Map.of("page_id", pageId));
+
+        System.out.println("[e2e] create_page with labels: OK");
     }
 
     @Test

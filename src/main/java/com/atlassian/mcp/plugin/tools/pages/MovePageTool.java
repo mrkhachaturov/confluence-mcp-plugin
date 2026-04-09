@@ -52,6 +52,7 @@ public class MovePageTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         String targetParentId = (String) args.get("target_parent_id");
         String targetSpaceKey = (String) args.get("target_space_key");
         String position = (String) args.getOrDefault("position", "append");

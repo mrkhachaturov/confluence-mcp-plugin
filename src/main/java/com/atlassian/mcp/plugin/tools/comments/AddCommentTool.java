@@ -53,6 +53,7 @@ public class AddCommentTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         String body = (String) args.get("body");
         if (body == null || body.isBlank()) {
             throw new McpToolException("'body' parameter is required");

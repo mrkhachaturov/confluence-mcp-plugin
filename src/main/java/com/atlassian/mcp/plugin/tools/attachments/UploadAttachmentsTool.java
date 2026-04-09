@@ -46,6 +46,7 @@ public class UploadAttachmentsTool implements McpTool {
         if (contentId == null || contentId.isBlank()) {
             throw new McpToolException("'content_id' parameter is required");
         }
+        contentId = McpTool.resolvePageId(contentId);
         String filePaths = (String) args.get("file_paths");
         if (filePaths == null || filePaths.isBlank()) {
             throw new McpToolException("'file_paths' parameter is required");

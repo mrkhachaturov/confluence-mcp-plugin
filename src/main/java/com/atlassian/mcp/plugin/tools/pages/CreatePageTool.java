@@ -9,6 +9,8 @@ import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,14 +64,16 @@ public class CreatePageTool implements McpTool {
     public Map<String, Object> inputSchema() {
         return Map.of(
                 "type", "object",
-                "properties", Map.of(
-                        "space_key", Map.of("type", "string", "description", "The key of the space to create the page in (usually a short uppercase code like 'DEV', 'TEAM', or 'DOC')"),
-                        "title", Map.of("type", "string", "description", "The title of the page"),
-                        "content", Map.of("type", "string", "description", "Page content in Markdown. All features described in the tool description work in Markdown — panels, status badges, task lists, expandable sections are all auto-converted to native Confluence elements. Do NOT start with '# Title' — Confluence displays the title separately. Valid status colors: green, red, yellow, blue, grey. Panels support nested formatting (bold, lists, links) inside them."),
-                        "parent_id", Map.of("type", "string", "description", "(Optional) parent page ID. If provided, this page will be created as a child of the specified page"),
-                        "content_format", Map.of("type", "string", "description", "(Optional) Content format. Use 'markdown' (default) for all normal pages — panels, status badges, tasks, and expand are all supported in Markdown. Only use 'storage' if you need advanced Confluence macros not covered by Markdown (e.g., Jira issue tables, page includes, layout columns). 'wiki' uses legacy Confluence wiki markup.", "default", "markdown"),
-                        "enable_heading_anchors", Map.of("type", "boolean", "description", "(Optional) Whether to enable automatic heading anchor generation. Only applies when content_format is 'markdown'", "default", false),
-                        "emoji", Map.of("type", "string", "description", "(Optional) Page title emoji (icon shown in navigation). Can be any emoji character like '📝', '🚀', '📚'. Set to null/None to remove.")
+                "properties", Map.ofEntries(
+                        Map.entry("space_key", Map.of("type", "string", "description", "The key of the space to create the page in (usually a short uppercase code like 'DEV', 'TEAM', or 'DOC')")),
+                        Map.entry("title", Map.of("type", "string", "description", "The title of the page")),
+                        Map.entry("content", Map.of("type", "string", "description", "Page content in Markdown. All features described in the tool description work in Markdown — panels, status badges, task lists, expandable sections are all auto-converted to native Confluence elements. Do NOT start with '# Title' — Confluence displays the title separately.")),
+                        Map.entry("parent_id", Map.of("type", "string", "description", "(Optional) parent page ID. If provided, this page will be created as a child of the specified page")),
+                        Map.entry("content_format", Map.of("type", "string", "description", "(Optional) Content format. Use 'markdown' (default). Only use 'storage' if you need advanced Confluence macros not covered by Markdown.", "default", "markdown")),
+                        Map.entry("emoji", Map.of("type", "string", "description", "(Optional) Page title emoji (icon shown in navigation). Can be any emoji character.")),
+                        Map.entry("return_markdown", Map.of("type", "boolean", "description", "If true, return the page content converted to Markdown instead of storage format.", "default", false)),
+                        Map.entry("labels", Map.of("type", "array", "description", "List of labels to apply to the page after creation. Example: ['policy', 'hr', 'q3-2026']", "items", Map.of("type", "string"))),
+                        Map.entry("initial_comment", Map.of("type", "string", "description", "(Optional) A comment to add to the page after creation, in Markdown format."))
                 ),
                 "required", List.of("space_key", "title", "content")
         );
@@ -93,6 +97,7 @@ public class CreatePageTool implements McpTool {
         }
         String parentId = (String) args.get("parent_id");
         String contentFormat = (String) args.getOrDefault("content_format", "markdown");
+        boolean returnMarkdown = getBoolean(args, "return_markdown", false);
 
         // Convert content to storage format (mirrors upstream's markdown_to_confluence_storage)
         String finalBody;
@@ -128,12 +133,62 @@ public class CreatePageTool implements McpTool {
             JsonNode raw = mapper.readTree(rawJson);
             ObjectNode result = mapper.createObjectNode();
             result.put("message", "Page created successfully");
-            result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, false));
+            result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, returnMarkdown));
+
+            String createdPageId = raw.path("id").asText();
+
+            // Best-effort: add labels if provided
+            Object labelsObj = args.get("labels");
+            if (labelsObj instanceof List<?> labelsList && !labelsList.isEmpty()) {
+                try {
+                    List<Map<String, String>> labelPayload = new ArrayList<>();
+                    for (Object l : labelsList) {
+                        labelPayload.add(Map.of("prefix", "global", "name", l.toString()));
+                    }
+                    String labelJson = mapper.writeValueAsString(labelPayload);
+                    client.postRaw("/rest/api/content/" + createdPageId + "/label", labelJson, authHeader);
+
+                    ArrayNode labelsAdded = mapper.createArrayNode();
+                    for (Object l : labelsList) {
+                        labelsAdded.add(l.toString());
+                    }
+                    result.set("labels_added", labelsAdded);
+                } catch (Exception labelErr) {
+                    result.put("labels_error", "Failed to add labels: " + labelErr.getMessage());
+                }
+            }
+
+            // Best-effort: add initial comment if provided
+            String initialComment = (String) args.get("initial_comment");
+            if (initialComment != null && !initialComment.isBlank()) {
+                try {
+                    Map<String, Object> commentBody = new HashMap<>();
+                    commentBody.put("type", "comment");
+                    commentBody.put("container", Map.of("id", createdPageId, "type", "page"));
+                    commentBody.put("body", Map.of("storage", Map.of(
+                            "value", MarkdownToStorage.convert(initialComment),
+                            "representation", "storage"
+                    )));
+                    String commentJson = mapper.writeValueAsString(commentBody);
+                    client.postRaw("/rest/api/content", commentJson, authHeader);
+                    result.put("comment_added", true);
+                } catch (Exception commentErr) {
+                    result.put("comment_error", "Failed to add comment: " + commentErr.getMessage());
+                }
+            }
+
             return mapper.writeValueAsString(result);
         } catch (McpToolException e) {
             throw e;
         } catch (Exception e) {
             throw new McpToolException("Failed to create page: " + e.getMessage());
         }
+    }
+
+    private static boolean getBoolean(Map<String, Object> args, String key, boolean defaultVal) {
+        Object val = args.get(key);
+        if (val instanceof Boolean b) return b;
+        if (val instanceof String s) return "true".equalsIgnoreCase(s);
+        return defaultVal;
     }
 }

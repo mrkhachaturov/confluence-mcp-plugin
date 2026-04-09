@@ -7,6 +7,7 @@ import com.atlassian.mcp.plugin.tools.attachments.*;
 import com.atlassian.mcp.plugin.tools.comments.*;
 import com.atlassian.mcp.plugin.tools.labels.*;
 import com.atlassian.mcp.plugin.tools.pages.*;
+import com.atlassian.mcp.plugin.tools.spaces.*;
 import com.atlassian.mcp.plugin.tools.users.*;
 import com.atlassian.plugin.PluginAccessor;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
@@ -55,7 +56,9 @@ public class ToolRegistry {
         register(new AddLabelTool(client));
         register(new GetLabelsTool(client));
 
-        // Pages (9)
+        // Pages (13)
+        register(new AppendToPageTool(client));
+        register(new ConvertContentTool(client));
         register(new CreatePageTool(client));
         register(new DeletePageTool(client));
         register(new GetPageTool(client));
@@ -63,8 +66,13 @@ public class ToolRegistry {
         register(new GetPageDiffTool(client));
         register(new GetPageHistoryTool(client));
         register(new MovePageTool(client));
+        register(new PrependToPageTool(client));
+        register(new ReplaceSectionTool(client));
         register(new SearchTool(client));
         register(new UpdatePageTool(client));
+
+        // Spaces (1)
+        register(new ListSpacesTool(client));
 
         // Users (1)
         register(new SearchUserTool(client));

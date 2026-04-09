@@ -49,6 +49,7 @@ public class GetCommentsTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
 
         // Upstream uses body.view (rendered HTML) — easier to convert to markdown
         String rawJson = client.getRaw("/rest/api/content/" + pageId

@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Mirrors upstream: confluence_mcp.get_page_history()
- * Returns: same format as get_page metadata (simplified page dict)
+ * Returns: {"page": {simplified page dict}}
  */
 public class GetPageHistoryTool implements McpTool {
     private final ConfluenceRestClient client;
@@ -51,6 +51,7 @@ public class GetPageHistoryTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         int version = getInt(args, "version", 0);
         boolean convertToMarkdown = getBoolean(args, "convert_to_markdown", true);
 
@@ -63,7 +64,9 @@ public class GetPageHistoryTool implements McpTool {
             String baseUrl = client.getBaseUrl();
             JsonNode root = mapper.readTree(rawJson);
             ObjectNode simplified = ResponseTransformer.simplifyPageNode(root, baseUrl, convertToMarkdown);
-            return mapper.writeValueAsString(simplified);
+            ObjectNode result = mapper.createObjectNode();
+            result.set("page", simplified);
+            return mapper.writeValueAsString(result);
         } catch (Exception e) {
             throw new McpToolException("Failed to transform page history response: " + e.getMessage());
         }

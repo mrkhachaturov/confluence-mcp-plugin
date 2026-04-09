@@ -250,6 +250,20 @@ public final class ResponseTransformer {
         return result;
     }
 
+    /**
+     * Transform a raw Confluence space JSON into simplified format.
+     *
+     * Output: {key, name, type, url}
+     */
+    public static ObjectNode simplifySpaceNode(JsonNode raw, String baseUrl) {
+        ObjectNode result = MAPPER.createObjectNode();
+        result.put("key", raw.path("key").asText(""));
+        result.put("name", raw.path("name").asText(""));
+        result.put("type", raw.path("type").asText(""));
+        result.put("url", baseUrl + "/spaces/" + raw.path("key").asText("") + "/overview");
+        return result;
+    }
+
     /** Convenience: parse JSON string to JsonNode. */
     public static JsonNode parse(String json) throws Exception {
         return MAPPER.readTree(json);

@@ -3,6 +3,7 @@ package com.atlassian.mcp.plugin.tools.pages;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.StorageToMarkdown;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -50,6 +51,7 @@ public class GetPageDiffTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         int fromVersion = getInt(args, "from_version", 0);
         int toVersion = getInt(args, "to_version", 0);
         if (fromVersion < 1 || toVersion < 1) {
@@ -68,8 +70,10 @@ public class GetPageDiffTool implements McpTool {
             JsonNode fromNode = mapper.readTree(fromJson);
             JsonNode toNode = mapper.readTree(toJson);
 
-            String fromContent = fromNode.path("body").path("storage").path("value").asText("");
-            String toContent = toNode.path("body").path("storage").path("value").asText("");
+            String fromStorage = fromNode.path("body").path("storage").path("value").asText("");
+            String toStorage = toNode.path("body").path("storage").path("value").asText("");
+            String fromContent = StorageToMarkdown.convert(fromStorage);
+            String toContent = StorageToMarkdown.convert(toStorage);
 
             // Simple line-based diff
             String[] fromLines = fromContent.split("\n");

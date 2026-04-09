@@ -50,6 +50,7 @@ public class AddLabelTool implements McpTool {
         if (pageId == null || pageId.isBlank()) {
             throw new McpToolException("'page_id' parameter is required");
         }
+        pageId = McpTool.resolvePageId(pageId);
         String name = (String) args.get("name");
         if (name == null || name.isBlank()) {
             throw new McpToolException("'name' parameter is required");

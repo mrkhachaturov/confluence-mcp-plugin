@@ -1,6 +1,6 @@
 # confluence-mcp-plugin
 
-Native Confluence Data Center plugin that embeds an MCP (Model Context Protocol) server. AI agents connect via OAuth 2.0 or PATs. 23 tools mirrored 1:1 from the upstream [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) Python project.
+Native Confluence Data Center plugin that embeds an MCP (Model Context Protocol) server. AI agents connect via OAuth 2.0 or PATs. 28 tools — 23 mirrored 1:1 from the upstream [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) Python project + 5 agent ergonomics tools.
 
 ## Upstream Parity
 
@@ -97,14 +97,15 @@ Single endpoint `/rest/mcp/1.0/` supporting Streamable HTTP transport (MCP spec 
 - **Origin validation** (MUST per spec): `Origin` header checked against Confluence base URL. Invalid Origin → 403. Localhost always allowed
 - **MCP-Protocol-Version** header validated on non-initialize requests
 
-## Tools — 23 Total
+## Tools — 28 Total
 
 | Package | Count | Toolset | Description |
 |---------|-------|---------|-------------|
-| `pages/` | 9 | `confluence_pages` | Search, get, create, update, delete, move pages, history, diff |
+| `pages/` | 13 | `confluence_pages` | Search, get, create, update, delete, move, history, diff, append, prepend, replace section, convert content |
 | `comments/` | 3 | `confluence_comments` | Get, add, reply to comments |
 | `labels/` | 2 | `confluence_labels` | Get and add labels |
 | `attachments/` | 7 | `confluence_attachments` | Upload, download, list, delete attachments and images |
+| `spaces/` | 1 | `confluence_spaces` | List available spaces |
 | `users/` | 1 | `confluence_users` | Search users |
 | `analytics/` | 1 | `confluence_analytics` | Page view statistics (Cloud-only) |
 
@@ -217,11 +218,12 @@ src/main/java/com/atlassian/mcp/plugin/
 │   └── ConfigResource.java           # Admin REST API
 └── tools/
     ├── McpTool.java                   # Tool interface
-    ├── ToolRegistry.java              # 23 tools registered, filtered by capability/config
-    ├── pages/                         # 9 tools
+    ├── ToolRegistry.java              # 28 tools registered, filtered by capability/config
+    ├── pages/                         # 13 tools
     ├── comments/                      # 3 tools
     ├── labels/                        # 2 tools
     ├── attachments/                   # 7 tools
+    ├── spaces/                        # 1 tool
     ├── users/                         # 1 tool
     └── analytics/                     # 1 tool
 

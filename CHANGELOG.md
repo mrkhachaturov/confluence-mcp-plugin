@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.2] - 2026-04-09
+
+### Added
+
+- **5 new tools** (23 → 28 total):
+  - `list_spaces` — discover available Confluence spaces (key, name, type, URL)
+  - `append_to_page` — add content to the end of a page without full replacement
+  - `prepend_to_page` — add content to the beginning of a page without full replacement
+  - `convert_content` — preview markdown-to-storage conversion without creating a page
+  - `replace_section` — edit a single section by heading without touching the rest of the page
+- **Optimistic locking** — `update_page`, `append_to_page`, `prepend_to_page`, `replace_section` accept optional `expected_version` parameter. Rejects update if page was modified since last read
+- **URL resolution in `page_id`** — all tools that accept page IDs now accept Confluence URLs (`viewpage.action?pageId=N`, `/pages/N/Title`). Extracts the ID automatically
+- **`return_markdown`** — `create_page` and `update_page` accept optional `return_markdown` parameter to get content as Markdown in the response instead of storage format
+- **Batch page creation** — `create_page` accepts optional `labels` (array) and `initial_comment` (markdown string), applied best-effort after page creation
+- **`ResponseTransformer.simplifySpaceNode()`** — whitelist transformation for space objects, consistent with page/comment/label/user patterns
+- E2E tests for all new features: list_spaces, convert_content, markdown diff, optimistic locking, append/prepend, batch create with labels (28 tests total)
+
+### Changed
+
+- **Markdown-based diff** — `get_page_diff` converts both versions to Markdown before computing the diff. No more noisy `ac:macro-id`, `ac:task-id`, and internal XML identifiers
+- **Unified response keys** — all page tools now use `"page"` as the wrapper key. `get_page` and `get_page_history` aligned with `create_page`/`update_page` (was inconsistent `"metadata"`)
+- `convert_content` response uses `{"content": {"value": "...", "format": "storage"}}` — same shape as the `content` field inside page responses
+- Version bump to 1.1.2 (cache bust for CDN-cached web resources)
+
 ## [1.1.1] - 2026-04-09
 
 ### Added

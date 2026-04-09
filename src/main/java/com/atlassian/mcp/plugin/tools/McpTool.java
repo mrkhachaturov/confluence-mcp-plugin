@@ -2,6 +2,8 @@ package com.atlassian.mcp.plugin.tools;
 
 import com.atlassian.mcp.plugin.McpToolException;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public interface McpTool {
 
@@ -53,6 +55,42 @@ public interface McpTool {
     default String executeWithProgress(Map<String, Object> args, String authHeader,
                                        ProgressCallback progress) throws McpToolException {
         return execute(args, authHeader);
+    }
+
+    /**
+     * Resolve a page_id parameter that may be a numeric ID or a Confluence URL.
+     * Extracts the page ID from known URL patterns:
+     *   - /pages/viewpage.action?pageId=123456
+     *   - /spaces/KEY/pages/123456/Title
+     *   - /wiki/spaces/KEY/pages/123456/Title
+     * Returns the input unchanged if it's already a numeric string.
+     */
+    Pattern PAGE_ID_FROM_QUERY = Pattern.compile("[?&]pageId=(\\d+)");
+    Pattern PAGE_ID_FROM_PATH = Pattern.compile("/pages/(\\d+)");
+
+    static String resolvePageId(String input) throws McpToolException {
+        if (input == null || input.isBlank()) return input;
+
+        // Already a numeric ID
+        if (input.matches("\\d+")) return input;
+
+        // Try URL patterns
+        if (input.startsWith("http://") || input.startsWith("https://")) {
+            Matcher m = PAGE_ID_FROM_QUERY.matcher(input);
+            if (m.find()) return m.group(1);
+
+            m = PAGE_ID_FROM_PATH.matcher(input);
+            if (m.find()) return m.group(1);
+
+            // /display/KEY/Title format — can't resolve without API lookup
+            throw new McpToolException(
+                    "Cannot extract page ID from URL: " + input
+                    + ". Use a URL with pageId= parameter or /pages/ID/ path, "
+                    + "or provide the numeric page ID directly.");
+        }
+
+        // Not a URL and not numeric — return as-is (Confluence will error if invalid)
+        return input;
     }
 
     /** Callback for reporting progress during streaming execution. */

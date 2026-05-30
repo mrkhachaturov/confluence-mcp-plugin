@@ -64,6 +64,11 @@ public class UpdatePageTool implements McpTool {
     @Override public boolean isWriteTool() { return true; }
 
     @Override
+    public boolean isDestructiveTool() {
+        return true;
+    }
+
+    @Override
     public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
         String pageId = (String) args.get("page_id");
         if (pageId == null || pageId.isBlank()) {

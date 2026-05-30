@@ -2,6 +2,7 @@ package com.atlassian.mcp.plugin.tools;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
+import com.atlassian.mcp.plugin.rest.McpToolAdapter;
 import com.atlassian.mcp.plugin.tools.analytics.*;
 import com.atlassian.mcp.plugin.tools.attachments.*;
 import com.atlassian.mcp.plugin.tools.comments.*;
@@ -11,6 +12,7 @@ import com.atlassian.mcp.plugin.tools.spaces.*;
 import com.atlassian.mcp.plugin.tools.users.*;
 import com.atlassian.plugin.PluginAccessor;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import java.util.*;
@@ -93,6 +95,20 @@ public class ToolRegistry {
                 .filter(this::isCapabilityMet)
                 .filter(t -> config.isToolEnabled(t.name()))
                 .filter(t -> !config.isReadOnlyMode() || !t.isWriteTool())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Adapts the currently-visible tools to MCP SDK {@code SyncToolSpecification}s for
+     * registration on the sync server. Applies the same three filters as {@link #listTools}:
+     * capability gate, admin-disabled list, and read-only-hides-write (spec §6.4).
+     */
+    public List<McpServerFeatures.SyncToolSpecification> toSpecifications() {
+        return allTools.values().stream()
+                .filter(this::isCapabilityMet)
+                .filter(t -> config.isToolEnabled(t.name()))
+                .filter(t -> !config.isReadOnlyMode() || !t.isWriteTool())
+                .map(McpToolAdapter::adapt)
                 .collect(Collectors.toList());
     }
 

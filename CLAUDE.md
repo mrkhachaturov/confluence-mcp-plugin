@@ -240,8 +240,8 @@ src/main/java/com/atlassian/mcp/plugin/
 
 ## Hard-Won Lessons
 
-### javax, NOT jakarta
-Confluence 10.x API JARs use `javax.servlet`, `javax.ws.rs`, `javax.inject`. Always use `javax.*` imports.
+### jakarta, NOT javax
+Confluence 10.x runs on Tomcat 10.1 / Jakarta EE 10 / Spring 6 / Java 21. The API uses `jakarta.servlet`, `jakarta.ws.rs`, `jakarta.inject` — always use `jakarta.*` imports, never `javax.*`. (This reverses the pre-10.x rule; older notes said "javax, NOT jakarta" — that is now wrong.) Spec-jar versions are managed by the `platform-public-api` BOM (see below), not hardcoded.
 
 ### Spring Scanner requires scan-indexes XML
 `@ComponentImport` requires `src/main/resources/META-INF/spring/plugin-context.xml` with `<atlassian-scanner:scan-indexes/>`.
@@ -268,7 +268,10 @@ The code generator produces flat `requestBody.put("field", value)` for POST/PUT 
 Confluence does not have Jira's `ComponentAccessor`. Use `com.atlassian.sal.api.component.ComponentLocator` for getting beans outside DI context (e.g., in servlet filters).
 
 ### Confluence 10.x requires Java 21
-The `confluence-10.2.7.jar` contains classes compiled for Java 21 (class version 65.0). The plugin must compile with Java 21 (`maven.compiler.source/target=21`, `mise: temurin-21`). Attempting to compile with Java 17 will fail with "class file has wrong version 65.0, should be 61.0" on any Confluence-specific imports like `UserAccessor`.
+The `confluence-10.2.11.jar` contains classes compiled for Java 21 (class version 65.0). The plugin must compile with Java 21 (`maven.compiler.source/target=21`, `mise: temurin-21`). Attempting to compile with Java 17 will fail with "class file has wrong version 65.0, should be 61.0" on any Confluence-specific imports like `UserAccessor`.
+
+### Platform versions come from the platform-public-api BOM
+There is no public Confluence API BOM (no analog to Jira's `jira-api-bom`). Confluence's internal `confluence-project` parent imports `com.atlassian.platform.dependencies:platform-public-api` — we import that same BOM directly in `<dependencyManagement>` (`platform.dependencies.version`, e.g. `8.3.16` for Confluence 10.2.11). Provided platform deps (`sal-api`, `atlassian-plugins-api`, `atlassian-rest-v2-api`, `atlassian-template-renderer-api`, `jackson`, `jakarta.*`, `atlassian-annotations`) omit `<version>` and inherit from it. To track a new Confluence version, bump `confluence.version` + `platform.dependencies.version` to whatever that release's `confluence-project` POM uses. Use `atlassian-rest-v2-api` (not legacy `atlassian-rest-common`).
 
 ### UserAccessor for group membership
 Confluence uses `com.atlassian.confluence.user.UserAccessor.hasMembership(groupName, username)` for group checks — not Jira's `GroupManager`.
@@ -313,7 +316,7 @@ When adding new specialized tools, register any new Confluence macro tags they n
 
 ## Critical Rules
 
-- **Always use `javax.*`** imports, never `jakarta.*`
+- **Always use `jakarta.*`** imports, never `javax.*` (Confluence 10.x = Jakarta EE 10 / Tomcat 10.1)
 - **Plugin key is `com.atlassian.mcp.confluence-mcp-plugin`** everywhere
 - **Use `atlas-mvn`** for local builds, never plain `mvn`
 - **Use `just`** for all workflows — build, deploy, test, codegen

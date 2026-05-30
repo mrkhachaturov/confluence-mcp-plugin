@@ -3,6 +3,7 @@ package com.atlassian.mcp.plugin.rest;
 import com.atlassian.annotations.security.UnrestrictedAccess;
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
 import com.atlassian.mcp.plugin.config.OAuthStateStore;
+import com.atlassian.mcp.plugin.rest.oauth.CimdValidator;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.ApplicationProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -52,6 +53,7 @@ public class OAuthServlet extends HttpServlet {
             .followRedirects(HttpClient.Redirect.NEVER)
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+    private final CimdValidator cimdValidator = new CimdValidator();
 
     @Inject
     public OAuthServlet(
@@ -89,7 +91,7 @@ public class OAuthServlet extends HttpServlet {
             addSecurityHeaders(resp);
             resp.setContentType("application/json");
             Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("resource", getBaseUrl() + "/rest/mcp/1.0/");
+            meta.put("resource", getBaseUrl() + "/plugins/servlet/mcp");
             meta.put("authorization_servers", List.of(getOAuthBase()));
             mapper.writeValue(resp.getWriter(), meta);
 
@@ -116,6 +118,28 @@ public class OAuthServlet extends HttpServlet {
             meta.put("token_endpoint_auth_methods_supported", List.of("none"));
             meta.put("code_challenge_methods_supported", List.of("S256"));
             meta.put("scopes_supported", List.of("WRITE", "READ"));
+            meta.put("client_id_metadata_document_supported", true);
+            mapper.writeValue(resp.getWriter(), meta);
+
+        } else if (path.equals("/openid-configuration") || path.equals("/openid-configuration/")) {
+            if (!rateLimiter.isAllowed(ip, "oauth-metadata", RATE_METADATA)) {
+                sendRateLimited(resp);
+                return;
+            }
+            addSecurityHeaders(resp);
+            resp.setContentType("application/json");
+            String base = getOAuthBase();
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("issuer", base);
+            meta.put("authorization_endpoint", base + "/authorize");
+            meta.put("token_endpoint", base + "/token");
+            meta.put("registration_endpoint", base + "/register");
+            meta.put("response_types_supported", List.of("code"));
+            meta.put("grant_types_supported", List.of("authorization_code", "refresh_token"));
+            meta.put("token_endpoint_auth_methods_supported", List.of("none"));
+            meta.put("code_challenge_methods_supported", List.of("S256"));
+            meta.put("scopes_supported", List.of("WRITE", "READ"));
+            meta.put("client_id_metadata_document_supported", true);
             mapper.writeValue(resp.getWriter(), meta);
 
         } else if (path.startsWith("/authorize")) {
@@ -232,17 +256,38 @@ public class OAuthServlet extends HttpServlet {
             return;
         }
 
-        OAuthStateStore.RegisteredClient client = stateStore.getClient(clientId);
-        if (client == null) {
-            resp.setStatus(400);
-            resp.getWriter().write("Unknown client_id");
-            return;
+        // Resolve the set of allowed redirect URIs from either a DCR-registered client OR a
+        // CIMD client_id (an HTTPS URL whose metadata document lists its redirect_uris, §6.5).
+        java.util.List<String> allowedRedirectUris;
+        if (CimdValidator.isCimdClientId(clientId)) {
+            try {
+                CimdValidator.CimdMetadata md = cimdValidator.resolve(clientId);
+                allowedRedirectUris = md.redirectUris;
+            } catch (CimdValidator.CimdException e) {
+                log.warn("[MCP-SEC] CIMD validation failed from {}: {}", getClientIp(req), e.getMessage());
+                addSecurityHeaders(resp);
+                resp.setStatus(400);
+                resp.setContentType("application/json");
+                Map<String, Object> err = new LinkedHashMap<>();
+                err.put("error", "invalid_client");
+                err.put("error_description", e.getMessage());
+                mapper.writeValue(resp.getWriter(), err);
+                return;
+            }
+        } else {
+            OAuthStateStore.RegisteredClient client = stateStore.getClient(clientId);
+            if (client == null) {
+                resp.setStatus(400);
+                resp.getWriter().write("Unknown client_id");
+                return;
+            }
+            allowedRedirectUris = client.redirectUris;
         }
 
-        // Validate redirect_uri against registered URIs (prevents open redirect / token theft)
+        // Validate redirect_uri against the allowed list (prevents open redirect / token theft)
         if (redirectUri == null || redirectUri.isEmpty()
-                || client.redirectUris.isEmpty()
-                || !client.redirectUris.contains(redirectUri)) {
+                || allowedRedirectUris == null || allowedRedirectUris.isEmpty()
+                || !allowedRedirectUris.contains(redirectUri)) {
             log.warn("[MCP-SEC] redirect_uri mismatch for client {} from {}", clientId, getClientIp(req));
             resp.setStatus(400);
             resp.setContentType("application/json");

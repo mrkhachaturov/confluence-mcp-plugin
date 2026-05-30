@@ -41,6 +41,15 @@ public class CimdValidatorTest {
     }
 
     @Test
+    public void cacheStaysBounded() {
+        for (int i = 0; i < 5000; i++) {
+            try { validator.resolve("https://blocked.invalid.test/" + i); }
+            catch (CimdValidator.CimdException ignored) {}
+        }
+        assertTrue("cache must stay bounded", validator.cacheSize() <= 1000);
+    }
+
+    @Test
     public void redirectUriHostMustMatchExactly() {
         assertTrue(CimdValidator.isAllowedRedirectUri("https://app.example.com/cb"));
         assertTrue(CimdValidator.isAllowedRedirectUri("http://localhost:1234/cb"));

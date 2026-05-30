@@ -38,17 +38,11 @@ public class OAuthAnonymousFilter implements Filter {
             return;
         }
 
-        // Redirect /rest/mcp/1.0 → /rest/mcp/1.0/ (Claude sends without trailing slash;
-        // without this, Confluence's login filter intercepts before JAX-RS can match)
-        if (uri.endsWith("/rest/mcp/1.0")) {
-            String query = req.getQueryString();
-            String target = uri + "/" + (query != null ? "?" + query : "");
-            resp.setStatus(307); // preserve method (POST)
-            resp.setHeader("Location", target);
-            return;
-        }
-
-        // Everything else (mcp-oauth servlet) — pass through
+        // /plugins/servlet/mcp — let it pass Confluence's login layer so it reaches the MCP
+        // filter chain, where AccessControlFilter returns a JSON 401 + WWW-Authenticate rather
+        // than an HTML login redirect (spec §4.1). This is reachability, NOT authorization —
+        // real auth still happens at AccessControlFilter.
+        // Everything else (mcp-oauth servlet, /plugins/servlet/mcp) — pass through.
         chain.doFilter(request, response);
     }
 

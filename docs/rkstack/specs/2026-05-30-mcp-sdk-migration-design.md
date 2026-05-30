@@ -45,19 +45,19 @@ The agreed scope is **"SDK migration + MCP spec compliance, minus UI widgets and
 
 **Spec-compliance items folded in (final form from the start — see §2):**
 - **SDK `2.0.0-M3` with builder APIs** (not M2 canonical constructors).
-- **Correct server capabilities:** `tools(false)`, `logging`, `completions`. No false `listChanged`. No `resources` capability (we do not expose resources — see "Out of scope").
+- **Correct server capabilities:** `tools(false)`, `logging`. No false `listChanged`. No `resources` and no `completions` capability (we expose neither — see "Out of scope").
 - **Server identity:** full `Implementation` builder — title, description, websiteUrl, icon — plus model-facing `instructions`. Confluence-authored text and logo.
 - **Tool annotations:** `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`.
 - **JSON Schema 2020-12 dialect** injected into each tool's input schema.
 - **RateLimit-\* response headers** (`RateLimit-Limit/Remaining/Reset`).
 - **WWW-Authenticate scope challenges** on 401/403.
-- **completion/complete handler** for the `space_key` argument (the Confluence analogue of Jira's `project_key`).
 - **OAuth discovery:** OpenID Connect Discovery metadata, Client ID Metadata Documents (CIMD), and the corrected protected-resource URL pointing at `/plugins/servlet/mcp`.
 
 ### Out of scope (deferred to a later spec)
 
 - **MCP Apps UI widgets** — `ui://` resources, the JS widget bundle, `McpUiAppCapabilities`, tool `visibility`, and the data layer that backs them: **`structuredContent` and `outputSchema`**. Without a widget to render them, structured payloads have no consumer, so the whole layer waits.
 - **MCP resources and resource templates** — `ResourceRegistry`, `confluence://page/{id}`, the `resources/*` handlers, and the `resources` server capability.
+- **completion/complete (argument autocompletion)** — deferred *because it is coupled to the above*. In MCP, a completion reference is only a `PromptReference` or a `ResourceReference` (a resource-template URI); the SDK's `CompleteReference` has no "tool argument" variant. Completing `space_key` would therefore require a resource template such as `confluence://space/{spaceKey}` (or a prompt) to attach to — exactly the resource layer we are deferring. So `CompletionRegistry`, the `.completions()` capability, and any `space_key` autocompletion move to the later spec alongside resources/templates.
 
 These are additive. Deferring them forces no rework of the code we write now.
 
@@ -68,6 +68,16 @@ These are additive. Deferring them forces no rework of the code we write now.
 The public MCP endpoint moves from `/rest/mcp/1.0/` to **`/plugins/servlet/mcp`**, matching Jira.
 
 The SDK's streamable transport calls `request.startAsync()`. On the Atlassian plugin framework only `<servlet-filter>` modules can be async-capable (see §6.1), and they live under `/plugins/servlet/*`. Keeping the old `/rest/*` path would mean fighting the JAX-RS module for ownership of the URL. The plugin is pre-1.x with no widely pinned external clients, so the clean move is worth the one-time URL change. OAuth metadata and docs are updated to advertise the new URL.
+
+### 4.1 Anonymous reachability (Confluence-specific — do not skip)
+
+The current endpoint gets anonymous access through `@UnrestrictedAccess` on the JAX-RS `McpResource` plus the `before-login` `OAuthAnonymousFilter` (CLAUDE.md: *"Anonymous REST access in Confluence 10: use `@UnrestrictedAccess` combined with a `before-login` servlet filter for full anonymous access"*). The new design deletes that JAX-RS resource, so the annotation is gone. Without a replacement, Confluence's login layer would intercept an unauthenticated request to `/plugins/servlet/mcp` and return an **HTML login redirect** — which breaks MCP discovery and the OAuth challenge flow, because clients expect a JSON body with a `WWW-Authenticate` header (RFC 9728), not a 302 to a login page.
+
+This is a real divergence from Jira: Jira does **not** route `/plugins/servlet/mcp` through its before-login filter, relying on platform default servlet behavior. Confluence's documented constraint says we must be explicit. Therefore:
+
+- The `before-login` `OAuthAnonymousFilter` (which carries `@UnrestrictedAccess`) is extended to cover `/plugins/servlet/mcp` (in addition to `/plugins/servlet/mcp-oauth/*` and `/.well-known/*`). It does not authenticate — it only lets the request pass Confluence's login layer so it reaches the MCP filter chain, where `AccessControlFilter` performs the real auth check and returns a proper `401` + `WWW-Authenticate` (or `403`) as a JSON response.
+- Real authentication still happens via PAT / OAuth Bearer token at `AccessControlFilter` (§6.3); anonymous reachability is *not* anonymous authorization.
+- **Acceptance tests (added to the e2e gate):** an unauthenticated request, an invalid-PAT request, and a valid-PAT/OAuth request to `/plugins/servlet/mcp` each return a JSON/MCP response (with `WWW-Authenticate` on the 401), never a Confluence login-page redirect.
 
 ---
 
@@ -81,7 +91,7 @@ The platform BOM is shared (`platform-public-api:8.3.16`), but product APIs diff
 | 2 | Auth context | **Different** | `AuthenticatedUserThreadLocal.get()` → `ConfluenceUser`; `user.getKey().getStringValue()`, `user.getName()`. Not SAL `UserManager`. |
 | 3 | Group membership | **Same** | `UserAccessor.hasMembership(group, username)` — already used by the current plugin. |
 | 4 | Base URL | **Same** | SAL `ApplicationProperties.getBaseUrl()` with the `confluenceBaseUrl` override. |
-| 5 | Completions target | **Different** | Spaces, not projects: list via `/rest/api/space`, key field `key`, completion argument `space_key`. |
+| 5 | Completions target | **Different — deferred** | Completions are out of scope (§3). When added later: spaces, not projects — list via `/rest/api/space`, key field `key`, on a `confluence://space/{spaceKey}` template. |
 | 6 | OAuth discovery | **Different (add)** | Current `OAuthServlet` is structurally parallel to Jira's (same `/metadata`, `/protected-resource`, `/register`, `/authorize`, `/token`, `/callback`, same `OAuthStateStore`, PKCE, base-URL logic) but lacks OIDC + CIMD. Port them in. |
 | 7 | Jackson / OSGi | **Same** | BOM resolves `jackson-databind` to 2.21.2. Exclude `jackson-dataformat-yaml` from `mcp-json-jackson2` to avoid version skew (the SDK pulls 2.18.3). Note: Confluence has no BannedDependencies enforcer, so this is skew-avoidance, not an enforcer fix. |
 | 8 | Overall architecture | **Different (this is the work)** | Confluence does origin/auth/rate-limit/body-size/headers **inline** in `McpResource` and has no `McpBootstrap`. The swap relocates these into `McpBootstrap` + the filter chain. |
@@ -119,9 +129,8 @@ HttpServletStreamableServerTransportProvider.builder()
 McpServer.sync(transport)
     .serverInfo(Implementation.builder("confluence-mcp-plugin", VERSION).title…description…websiteUrl…icons…)
     .instructions(SERVER_INSTRUCTIONS)
-    .capabilities(tools(false).logging().completions())
+    .capabilities(tools(false).logging())
     .tools(toolRegistry.toSpecifications())
-    .completions(completionRegistry.toSpecifications())
     .build()
 ```
 
@@ -141,8 +150,8 @@ The concerns currently inline in `McpResource` become discrete `<servlet-filter>
 BodySizeLimit(200) → RateLimit(300) → AccessControl(400) → SessionBinding(500) → SecurityHeaders(550) → Transport(600)
 ```
 
-- **BodySizeLimitFilter** — 1 MB cap (current `MAX_BODY_BYTES`).
-- **RateLimitFilter** — 120 calls/min per user, and emits `RateLimit-*` headers.
+- **BodySizeLimitFilter** — 1 MB cap (current `MAX_BODY_BYTES`), enforced on **actual bytes read**, not on a trusted `Content-Length` header. The filter wraps the request input stream and aborts once the limit is exceeded, so chunked transfers and requests with a missing or lying `Content-Length` are still capped before the SDK transport reads the body. A `Content-Length` over the limit is rejected early as a fast path. The endpoint is reachable unauthenticated (§4.1), so this guard must not be bypassable. Tests cover oversized fixed-length, oversized chunked, and no-`Content-Length` bodies.
+- **RateLimitFilter** — 120 calls/min, keyed **per authenticated user, and per client IP for unauthenticated or unresolved-user requests**. This filter runs before `AccessControlFilter`, and §4.1 deliberately lets unauthenticated traffic reach the chain (to receive a JSON `WWW-Authenticate`), so the anonymous case must have a real bucket rather than a shared null key. Over-limit returns `429` with `RateLimit-*` (and `Retry-After`) headers. Tests cover repeated unauthenticated and invalid-token requests hitting the limit.
 - **AccessControlFilter** — enforces auth (rejects unauthenticated with a `WWW-Authenticate` challenge) and the allowed-users/allowed-groups policy via `UserAccessor.hasMembership`.
 - **SessionBindingFilter** — binds the MCP session to the authenticated user.
 - **SecurityHeadersFilter** — `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, frame options.
@@ -155,7 +164,7 @@ Helpers `BufferedRequestWrapper` and `CapturingResponseWrapper` are ported from 
 `McpTool` keeps `name / description / inputSchema / isWriteTool / requiredPluginKey / execute`. It gains SDK-aware default methods, all with sane defaults so existing tools need no edits unless they want to override:
 
 - `title()` → `null`
-- `isDestructiveTool()` → `false` (delete tools override to `true`)
+- `isDestructiveTool()` → `false`, overridden to `true` by every tool that **deletes or overwrites existing content**: `delete_page`, `delete_attachment`, `update_page`, `replace_section`. Additive writes (`create_page`, `add_comment`, `reply_to_comment`, `add_label`, `append_to_page`, `prepend_to_page`) stay non-destructive. `move_page` relocates rather than destroys content, so it stays non-destructive. A false destructive hint would let a client skip confirmation on a content-replacing write, so this is a per-tool decision, not a blanket delete-only rule.
 - `idempotentHint()` → `!isWriteTool()`
 - `openWorldHint()` → `true` (every tool calls the Confluence REST API)
 - `executeWithSdkProgress(args, authHeader, exchange, progressToken)` → defaults to `execute(args, authHeader)`
@@ -170,26 +179,21 @@ No `outputSchema` / `structuredContent` — that is the deferred widget data lay
 
 `ToolRegistry.toSpecifications()` applies the same three filters it uses today — capability gate (`requiredPluginKey` enabled), admin-disabled list, read-only-hides-write — and adapts the survivors.
 
-### 6.5 Completions — `CompletionRegistry`
-
-A `CompletionRegistry` registers a single `SyncCompletionSpecification` for the `space_key` argument. The handler:
-1. Reads the prefix from the completion request.
-2. Reads the Authorization header from the exchange transport context.
-3. Lists spaces via `GET /rest/api/space`, extracts the `key` field, sorts.
-4. Returns the keys that start with the prefix (capped, with a `hasMore` flag), cached briefly per auth header.
-
-Registered in `McpBootstrap` via `.completions(completionRegistry.toSpecifications())`, with the `completions` server capability declared.
-
-### 6.6 OAuth discovery additions
+### 6.5 OAuth discovery additions
 
 The existing `OAuthServlet` and `OAuthAnonymousFilter` keep their structure. We add, mirroring Jira:
-- **OpenID Connect Discovery** — a `/openid-configuration` route returning issuer, authorization/token/registration endpoints, supported response types / PKCE methods / grant types / scopes, and `client_id_metadata_document_supported: true`. The plugin does not issue ID tokens; this advertises the same authorization server for clients that probe the OIDC well-known path.
-- **CIMD** — a `CimdValidator` (under `rest/oauth/`) that recognizes an `https://…/path` client_id, fetches and validates the metadata document (8 KB cap, 10 s timeout, HTTPS-only, redirect-URI rules, `client_id` self-match), caches it, and feeds the allowed redirect URIs into the authorize flow.
+- **OpenID Connect Discovery** — the metadata (issuer, authorization/token/registration endpoints, supported response types / PKCE methods / grant types / scopes, `client_id_metadata_document_supported: true`). The plugin does not issue ID tokens; this advertises the same authorization server. It must be reachable at **both** public URLs clients probe:
+  - `/.well-known/openid-configuration` — served directly by the `before-login` `OAuthAnonymousFilter` (servlets cannot serve at the context root), exactly as the existing `/.well-known/oauth-*` paths are. The filter's matching must include `openid-configuration`, not just the `oauth-` prefix.
+  - `/plugins/servlet/mcp-oauth/openid-configuration` — the servlet-local route.
+  - **Acceptance tests** assert both URLs return the OIDC document (not a 404 or login redirect) and that `issuer` / endpoint paths are correct.
+- **CIMD** — a `CimdValidator` (under `rest/oauth/`) that recognizes an `https://…/path` client_id, fetches and validates the metadata document, caches it, and feeds the allowed redirect URIs into the authorize flow. Validation controls: 8 KB body cap, 10 s timeout, HTTPS-only, redirect-URI rules, `client_id` self-match.
+  - **SSRF defense (mandatory).** The client_id URL is attacker-controlled and the fetch runs from inside the Confluence JVM (reachable by an *unauthenticated* authorize request), so resource-limit controls are not enough. The validator MUST also: follow **no redirects**; resolve the host's IP **before connecting** and **reject** loopback, link-local, private (RFC 1918), unique-local, and cloud-metadata ranges (`169.254.169.254`, `fd00::`, etc.) unless an explicit admin allowlist opts them in; **pin the connection to the resolved address** (or re-resolve and re-check) to defeat DNS-rebinding; and cap total fetch time/size as above. Unit + e2e tests MUST cover blocked `client_id` URLs pointing at `localhost`, a private IP, and the metadata IP.
+  - **Bounded cache (mandatory).** The cache is keyed by attacker-supplied client_id URLs, so it MUST be bounded: a hard cap on entries (and/or total bytes), a short positive TTL, and bounded **negative caching** for fetch failures (so a flood of unique URLs neither grows the heap without limit nor re-hammers outbound hosts). A test asserts that many distinct `client_id` URLs do not grow the cache past its cap.
 - **Protected-resource URL fix** — the protected-resource metadata (`/plugins/servlet/mcp-oauth/protected-resource` and `/.well-known/oauth-protected-resource`) advertises `<base>/plugins/servlet/mcp` as the resource, matching the new endpoint.
 
-`OAuthAnonymousFilter` url-patterns are updated: drop `/rest/mcp/1.0`, keep `/plugins/servlet/mcp-oauth/*` and `/.well-known/*`.
+`OAuthAnonymousFilter` url-patterns are updated: drop `/rest/mcp/1.0`, keep `/plugins/servlet/mcp-oauth/*` and `/.well-known/*`, and **add `/plugins/servlet/mcp`** so the transport endpoint stays anonymously reachable past Confluence's login layer (see §4.1).
 
-### 6.7 pom.xml / OSGi
+### 6.6 pom.xml / OSGi
 
 - Add `io.modelcontextprotocol.sdk:mcp-core:2.0.0-M3` and `mcp-json-jackson2:2.0.0-M3`, excluding `jackson-dataformat-yaml`.
 - Pin `slf4j-api` as `provided` so the plugin uses Confluence's slf4j (avoids OSGi split-package / log loss).
@@ -212,7 +216,9 @@ The existing `OAuthServlet` and `OAuthAnonymousFilter` keep their structure. We 
 
 ## 8. Testing & acceptance
 
-Rewrite the ~22 e2e tests in `McpEndpointE2ETest.java` against the **SDK sync client** (`McpClient.sync` over streamable HTTP to `/plugins/servlet/mcp`), mirroring Jira's rewrite. Coverage stays equivalent: protocol (initialize/ping), tools/list parity (28 tools), schema validation, read tools (search, search_user, list_spaces), the page CRUD lifecycle, session create/use/delete, and the OAuth refresh paths. New assertions cover the in-scope compliance items: tool annotations present, capabilities correct (no false `listChanged`), `space_key` completion returns candidates, OIDC discovery + protected-resource URL correct, `RateLimit-*` headers present.
+Rewrite the ~22 e2e tests in `McpEndpointE2ETest.java` against the **SDK sync client** (`McpClient.sync` over streamable HTTP to `/plugins/servlet/mcp`), mirroring Jira's rewrite. Coverage stays equivalent: protocol (initialize/ping), tools/list parity (28 tools), schema validation, read tools (search, search_user, list_spaces), the page CRUD lifecycle, session create/use/delete, and the OAuth refresh paths. New assertions cover the in-scope compliance items: tool annotations present **and correct** across representative tools (e.g. `readOnlyHint` true on `search`; `destructiveHint` true on `update_page`/`replace_section`/`delete_page`, false on `append_to_page`/`create_page`), capabilities correct (no false `listChanged`, no `completions`/`resources` declared), OIDC discovery + protected-resource URL correct, and `RateLimit-*` headers present.
+
+Security acceptance tests (regressions the SDK swap could introduce) are mandatory: (a) **auth routing** — unauthenticated / invalid-PAT / valid-PAT requests to `/plugins/servlet/mcp` return JSON + `WWW-Authenticate`, never a Confluence login redirect (§4.1); (b) **body cap** — oversized fixed-length, oversized chunked, and no-`Content-Length` POSTs are rejected (§6.3); (c) **anonymous rate limit** — repeated unauthenticated / invalid-token requests hit `429` with `RateLimit-*` headers via the per-IP bucket, before `AccessControl` (§6.3); (d) **CIMD SSRF** — `client_id` URLs pointing at `localhost`, a private IP, and the cloud-metadata IP are blocked (§6.5); (e) **CIMD cache bound** — many distinct `client_id` URLs do not grow the cache past its cap (§6.5); (f) **OIDC well-known** — both `/.well-known/openid-configuration` and `/plugins/servlet/mcp-oauth/openid-configuration` return the discovery document, not a 404/redirect (§6.5).
 
 **Acceptance gate:** `just e2e` green against the live Confluence 10.2.11 instance, with `-Datlassian.plugins.filter.async.default=true` set on its JVM.
 
@@ -223,13 +229,11 @@ Rewrite the ~22 e2e tests in `McpEndpointE2ETest.java` against the **SDK sync cl
 Each step is a separate commit on `feature/platform-10.2.11-jakarta-sdk`. The build stays green after every step.
 
 1. **SDK deps + OSGi embedding.** Add dependencies, `<Private-Package>`, widened imports, slf4j pin. Nothing wired yet; `atlas-mvn clean package` succeeds.
-2. **Transport + bootstrap.** `McpBootstrap` (transport, server info, capabilities, SDK origin validator), `McpTransportFilter`, `ConfluenceAuthContextExtractor`. Swap the plugin descriptor (filter at `/plugins/servlet/mcp`). Delete `JsonRpcHandler` and `McpResource`.
-3. **Tool adapter.** `McpToolAdapter` (annotations + 2020-12 dialect), `ToolRegistry.toSpecifications()`, the SDK-aware `McpTool` default methods, `isDestructiveTool()` overrides on delete tools.
-4. **Security filter chain.** Port `BodySizeLimitFilter`, `RateLimitFilter` (+ `RateLimit-*` headers), `AccessControlFilter` (+ `WWW-Authenticate`), `SessionBindingFilter`, `SecurityHeadersFilter`, and the request/response wrappers — adapted to Confluence auth/group APIs.
-5. **Completions.** `CompletionRegistry` for `space_key`; wire `.completions()` and the capability.
-6. **OAuth discovery.** OIDC discovery route, `CimdValidator`, protected-resource URL fix; update `OAuthAnonymousFilter` patterns.
-7. **E2E rewrite.** Port the suite to the SDK sync client; run `just e2e` against live 10.2.11 — the acceptance gate.
-8. **Docs.** Update `CLAUDE.md` (endpoint URL, JVM flag, the new transport architecture), `README`, and mark the HANDOFF's SDK-migration section done.
+2. **Tool adapter (before bootstrap, so bootstrap compiles).** `McpToolAdapter` (annotations + 2020-12 dialect), `ToolRegistry.toSpecifications()`, the SDK-aware `McpTool` default methods, `isDestructiveTool()` overrides on delete *and content-overwrite* tools (`delete_page`, `delete_attachment`, `update_page`, `replace_section` — §6.4). Purely additive — the old `McpResource`/`JsonRpcHandler` still serve traffic and the build stays green.
+3. **Transport + bootstrap + security chain — one atomic commit.** The endpoint must never be reachable without its replacement controls, so the following land together in a single commit: the full security filter chain (`BodySizeLimitFilter` — cap on actual bytes read, §6.3; `RateLimitFilter` — per-user/per-IP + `RateLimit-*` headers, §6.3; `AccessControlFilter` — auth + `WWW-Authenticate`; `SessionBindingFilter`; `SecurityHeadersFilter`; the request/response wrappers, adapted to Confluence auth/group APIs); `McpBootstrap` (transport, server info, capabilities, SDK origin validator, consuming `toolRegistry.toSpecifications()` from step 2); `McpTransportFilter`; `ConfluenceAuthContextExtractor`; the plugin-descriptor swap (filter at `/plugins/servlet/mcp`); the before-login anon-filter extension for `/plugins/servlet/mcp` (§4.1); and the deletion of `JsonRpcHandler`/`McpResource`. No intermediate commit exposes `/plugins/servlet/mcp` anonymously without body cap, rate limit, access control, and session binding.
+4. **OAuth discovery.** OIDC discovery route + explicit well-known serving (§6.5), `CimdValidator` (SSRF defenses + bounded cache, §6.5), protected-resource URL fix.
+5. **E2E rewrite.** Port the suite to the SDK sync client; add the security acceptance tests (§8); run `just e2e` against live 10.2.11 — the acceptance gate.
+6. **Docs.** Update `CLAUDE.md` (endpoint URL, JVM flag, the new transport architecture), `README`, and mark the HANDOFF's SDK-migration section done.
 
 ---
 

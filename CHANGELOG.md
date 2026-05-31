@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.0] - 2026-05-31
+
+### Added
+
+- **Official MCP Java SDK transport** (`io.modelcontextprotocol.sdk:2.0.0-M3`) — replaces the hand-rolled JSON-RPC layer. The SDK now owns protocol framing, session IDs, SSE wrapping, `Accept` negotiation, and `MCP-Protocol-Version`. Mounted as an async `<servlet-filter>` at `/plugins/servlet/mcp` (built by `McpBootstrap`, owned by `McpTransportFilter`)
+- **Security filter chain** — six `<servlet-filter>` modules in ascending weight: body-size cap (1 MiB, enforced on actual bytes read), per-user/per-IP rate limiting (120/min with `RateLimit-*` headers), access control, session-user binding, and security headers. Request `Origin` is validated by the SDK's `DefaultServerTransportSecurityValidator`
+- **Spec-compliant OAuth challenge** — unauthenticated or invalid-token requests now return `401` with `WWW-Authenticate: Bearer ... resource_metadata=...` (RFC 9728) instead of an HTML login redirect, so MCP clients can discover and start the OAuth flow. Achieved with `@UnrestrictedAccess` + `before-dispatch` on the filter chain (a Seraph login-exemption only — tokens are still validated by Confluence)
+- **Session-user binding** — an `MCP-Session-Id` issued to one Confluence user cannot be replayed by another (403); unknown/expired sessions return 401
+- **OAuth OIDC discovery** — `/.well-known/openid-configuration` and `/plugins/servlet/mcp-oauth/openid-configuration`
+- **CIMD (OAuth Client ID Metadata Documents)** — `client_id` as an HTTPS URL, with SSRF defenses (HTTPS-only, no redirects, private/loopback/link-local/CGNAT/ULA/cloud-metadata IPs blocked, 8 KB body cap) and a bounded positive/negative cache
+- **Tool annotations** — read-only / destructive / idempotent / open-world hints on every tool (`update_page`, `replace_section`, `delete_page`, `delete_attachment` marked destructive)
+
+### Changed
+
+- **MCP endpoint moved** from `POST /rest/mcp/1.0/` to `POST /plugins/servlet/mcp` — update MCP client configuration accordingly (the admin page now shows the new URL)
+- Tools are adapted to the SDK's `SyncToolSpecification` via `McpToolAdapter`; `ToolRegistry.toSpecifications()` is the registration entry point. Read-only mode and disabled-tool toggles are enforced at tool-call time
+- Server capabilities advertise `tools` (listChanged=false) and `logging` only (no resources/completions)
+- Targets Confluence 10.2.11 / Jakarta EE 10 / Tomcat 10.1 / Java 21, via the `platform-public-api` BOM 8.3.16
+- Version bump to 1.2.0 (also busts the CDN cache for web resources)
+
+### Removed
+
+- Hand-rolled `JsonRpcHandler` and the JAX-RS `McpResource` endpoint — replaced by the official SDK transport
+
 ## [1.1.2] - 2026-04-09
 
 ### Added

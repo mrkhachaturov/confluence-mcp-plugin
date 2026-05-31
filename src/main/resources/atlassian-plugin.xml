@@ -15,12 +15,6 @@
     <!-- i18n -->
     <resource type="i18n" name="i18n" location="mcp-plugin"/>
 
-    <!-- MCP REST endpoint -->
-    <rest key="mcp-rest" path="/mcp" version="1.0">
-        <description>MCP Streamable HTTP endpoint</description>
-        <package>com.atlassian.mcp.plugin.rest</package>
-    </rest>
-
     <!-- Admin REST endpoint -->
     <rest key="mcp-admin-rest" path="/mcp-admin" version="1.0">
         <description>MCP admin configuration API</description>
@@ -45,14 +39,57 @@
         <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.ConfluenceAdministratorCondition"/>
     </web-item>
 
-    <!-- OAuth: bypass Confluence login filter for servlet + well-known -->
+    <!-- OAuth + MCP: bypass Confluence login filter for the OAuth servlet, well-known, and
+         the MCP transport endpoint (anonymous reachability only — real auth at AccessControlFilter) -->
     <servlet-filter key="mcp-oauth-anon-filter" name="MCP OAuth Anonymous Filter"
                     class="com.atlassian.mcp.plugin.rest.OAuthAnonymousFilter"
                     location="before-login" weight="1">
         <url-pattern>/plugins/servlet/mcp-oauth/*</url-pattern>
         <url-pattern>/.well-known/*</url-pattern>
-        <url-pattern>/rest/mcp/1.0</url-pattern>
         <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+
+    <!-- MCP security chain (spec §6.3) — ascending weight, location="before-dispatch" so the
+         whole chain runs before Seraph's login interception. This lets AccessControlFilter return
+         a JSON 401 + WWW-Authenticate for anonymous requests instead of a Seraph 302 to login.action
+         (matches the working jira-mcp-plugin wiring). Origin is handled by the SDK validator inside
+         the transport, so it is not a filter. -->
+    <servlet-filter key="mcp-body-size-filter" name="MCP Body Size Limit"
+                    class="com.atlassian.mcp.plugin.rest.BodySizeLimitFilter"
+                    location="before-dispatch" weight="200">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+    <servlet-filter key="mcp-rate-limit-filter" name="MCP Rate Limit"
+                    class="com.atlassian.mcp.plugin.rest.RateLimitFilter"
+                    location="before-dispatch" weight="300">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+    <servlet-filter key="mcp-access-control-filter" name="MCP Access Control"
+                    class="com.atlassian.mcp.plugin.rest.AccessControlFilter"
+                    location="before-dispatch" weight="400">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+    <servlet-filter key="mcp-session-binding-filter" name="MCP Session Binding"
+                    class="com.atlassian.mcp.plugin.rest.SessionBindingFilter"
+                    location="before-dispatch" weight="500">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+    <servlet-filter key="mcp-security-headers-filter" name="MCP Security Headers"
+                    class="com.atlassian.mcp.plugin.rest.SecurityHeadersFilter"
+                    location="before-dispatch" weight="550">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
+    <servlet-filter key="mcp-transport-filter" name="MCP Transport"
+                    class="com.atlassian.mcp.plugin.rest.McpTransportFilter"
+                    location="before-dispatch" weight="600">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+        <dispatcher>ASYNC</dispatcher>
     </servlet-filter>
 
 

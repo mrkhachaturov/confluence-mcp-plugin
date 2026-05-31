@@ -1,6 +1,7 @@
 package com.atlassian.mcp.plugin.tools;
 
 import com.atlassian.mcp.plugin.McpToolException;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,6 +35,44 @@ public interface McpTool {
      * @return JSON string result
      */
     String execute(Map<String, Object> args, String authHeader) throws McpToolException;
+
+    // ── MCP SDK annotation hints (spec §6.4) — sane defaults so existing tools need no edits ──
+
+    /** Display title for the tool annotation. Null = SDK omits it. */
+    default String title() {
+        return null;
+    }
+
+    /**
+     * True only for tools that DELETE or OVERWRITE existing content. Overridden by
+     * delete_page, delete_attachment, update_page, replace_section (spec §6.4). Additive
+     * writes (create_page, add_comment, append_to_page, ...) stay false. A false hint lets
+     * a client skip confirmation on a content-replacing write, so this is per-tool.
+     */
+    default boolean isDestructiveTool() {
+        return false;
+    }
+
+    /** Idempotent unless the tool writes. */
+    default boolean idempotentHint() {
+        return !isWriteTool();
+    }
+
+    /** Every tool calls the Confluence REST API, so the world is "open". */
+    default boolean openWorldHint() {
+        return true;
+    }
+
+    /**
+     * SDK-progress entry point. Defaults to {@link #execute(Map, String)}; batch tools
+     * may override to emit progress via the exchange. {@code exchange} and
+     * {@code progressToken} are provided by the SDK transport (spec §6.4).
+     */
+    default String executeWithSdkProgress(Map<String, Object> args, String authHeader,
+                                          McpSyncServerExchange exchange, Object progressToken)
+            throws McpToolException {
+        return execute(args, authHeader);
+    }
 
     /**
      * Whether this tool supports streaming execution with progress notifications.

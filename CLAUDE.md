@@ -36,7 +36,7 @@ After generation, copy files to `src/main/java/.../tools/` and update `ToolRegis
 
 | Layer | What |
 |-------|------|
-| MCP endpoint | JAX-RS at `/rest/mcp/1.0/` — Streamable HTTP (JSON-RPC 2.0 + SSE) |
+| MCP endpoint | MCP Java SDK streamable transport, mounted as async `<servlet-filter>` modules at `/plugins/servlet/mcp` (transport built by `McpBootstrap`, owned by `McpTransportFilter`) |
 | OAuth proxy | Servlet at `/plugins/servlet/mcp-oauth/` — bridges MCP client OAuth with Confluence OAuth 2.0, supports refresh token pass-through |
 | Tools | 23 classes in `tools/` — each calls Confluence REST API internally via `ConfluenceRestClient` |
 | Response transformer | `ResponseTransformer` — whitelist-based JSON transformation matching upstream's `to_simplified_dict()`. Constructs full URLs, formats timestamps, simplifies pages/comments/labels/users |
@@ -68,7 +68,7 @@ just clean            # atlas-clean
 |------|-------|
 | Plugin key | `com.atlassian.mcp.confluence-mcp-plugin` |
 | Maven coordinates | `com.atlassian.mcp:confluence-mcp-plugin` |
-| MCP endpoint | `POST /rest/mcp/1.0/` |
+| MCP endpoint | `POST /plugins/servlet/mcp` |
 | OAuth endpoints | `/plugins/servlet/mcp-oauth/{metadata,register,authorize,callback,token}` |
 | Admin REST | `GET/PUT /rest/mcp-admin/1.0/` |
 | Admin page | `/plugins/servlet/mcp-admin` |
@@ -76,26 +76,29 @@ just clean            # atlas-clean
 
 ## MCP Protocol — Streamable HTTP
 
-Single endpoint `/rest/mcp/1.0/` supporting Streamable HTTP transport (MCP spec 2025-06-18).
+Single endpoint `/plugins/servlet/mcp` supporting Streamable HTTP transport (MCP spec 2025-06-18).
 
-| Method | Action |
+The official **MCP Java SDK** now owns the protocol entirely — JSON-RPC framing, session ids, SSE streaming, and `Accept` negotiation are all handled by the SDK's `HttpServletStreamableServerTransportProvider` (built in `McpBootstrap`, served by `McpTransportFilter`). The plugin no longer hand-rolls `initialize` / `notifications/initialized` / `tools/list` / `tools/call` / `ping` dispatch; it only supplies the tool specifications and server capabilities. The old `JsonRpcHandler` + `McpResource` are deleted.
+
+| Method | Action (handled by the SDK) |
 |--------|--------|
 | `initialize` | Return server info + capabilities + `MCP-Session-Id` header |
-| `notifications/initialized` | Return 202 |
+| `notifications/initialized` | Acknowledge |
 | `tools/list` | Return filtered tool list |
 | `tools/call` | Dispatch to tool, return result |
 | `ping` | Keep-alive |
 
-### Session management
+### Session management (SDK-managed)
 
 - `MCP-Session-Id` returned on `initialize`, required on subsequent requests
-- Sessions stored in static `ConcurrentHashMap`
+- Session lifecycle (creation, lookup, expiry) is owned by the SDK transport
 - DELETE closes session, 404 returned for expired/unknown sessions
 
 ### Security
 
-- **Origin validation** (MUST per spec): `Origin` header checked against Confluence base URL. Invalid Origin → 403. Localhost always allowed
-- **MCP-Protocol-Version** header validated on non-initialize requests
+- Body-size limit, rate limiting, access control, session binding, and security headers are discrete `<servlet-filter>` modules (see "Security is a filter chain" lesson below)
+- **Origin validation** (MUST per spec): handled by the SDK's `DefaultServerTransportSecurityValidator` inside the transport (not a filter). Invalid Origin → 403
+- **MCP-Protocol-Version** header validated by the SDK on non-initialize requests
 
 ## Tools — 28 Total
 
@@ -123,6 +126,8 @@ public interface McpTool {
     String execute(Map<String, Object> args, String authHeader) throws McpToolException;
 }
 ```
+
+Each `McpTool` is adapted to the SDK's `SyncToolSpecification` via `McpToolAdapter`. `ToolRegistry.toSpecifications()` is the registration entry point that hands the filtered specs to the SDK server. Server capabilities are `tools(false).logging()` only — no resources or completions.
 
 ### Writing execute() Bodies
 
@@ -240,8 +245,8 @@ src/main/java/com/atlassian/mcp/plugin/
 
 ## Hard-Won Lessons
 
-### javax, NOT jakarta
-Confluence 10.x API JARs use `javax.servlet`, `javax.ws.rs`, `javax.inject`. Always use `javax.*` imports.
+### jakarta, NOT javax
+Confluence 10.x runs on Tomcat 10.1 / Jakarta EE 10 / Spring 6 / Java 21. The API uses `jakarta.servlet`, `jakarta.ws.rs`, `jakarta.inject` — always use `jakarta.*` imports, never `javax.*`. (This reverses the pre-10.x rule; older notes said "javax, NOT jakarta" — that is now wrong.) Spec-jar versions are managed by the `platform-public-api` BOM (see below), not hardcoded.
 
 ### Spring Scanner requires scan-indexes XML
 `@ComponentImport` requires `src/main/resources/META-INF/spring/plugin-context.xml` with `<atlassian-scanner:scan-indexes/>`.
@@ -254,6 +259,31 @@ Without `<DynamicImport-Package>*</DynamicImport-Package>` in pom.xml, runtime c
 
 ### Anonymous REST access in Confluence 10
 Use `@UnrestrictedAccess` from `com.atlassian.annotations.security`. Combined with a `before-login` servlet filter for full anonymous access.
+
+### Async transport via servlet-filter
+The MCP Java SDK streamable transport calls `request.startAsync()`. Atlassian `<servlet>` modules hard-code `asyncSupported=false`, so the transport is mounted as `<servlet-filter>` modules instead (owned by `McpTransportFilter`). The Atlassian plugin framework governs filter async support via the JVM flag `-Datlassian.plugins.filter.async.default=true` (fallback: `-Datlassian.plugins.filter.force.async.dispatcher=true`). **This flag is a documented requirement on the Confluence server** for the MCP endpoint to work. Note: this flag is *only* about async dispatch — it has nothing to do with anonymous reachability (see the next lesson).
+
+### Anonymous endpoint reachability (JSON 401, not Seraph 302)
+On a login-required Confluence instance, Seraph 302-redirects an anonymous (or invalid-credential) request to `/login.action` *before* a default-location filter ever runs — so the client gets an HTML login page instead of the spec's JSON 401. To return a proper JSON 401 + `WWW-Authenticate` instead:
+
+1. Every MCP filter class carries `@UnrestrictedAccess` (`com.atlassian.annotations.security.UnrestrictedAccess`), AND
+2. all six `<servlet-filter>` modules use `location="before-dispatch"`.
+
+A `before-login` filter that merely passes through does **not** exempt the path from Seraph. (The old JAX-RS `McpResource` got this exemption from `@UnrestrictedAccess` on the resource; the filter chain replicates it on each filter class.) Verified live: unauthenticated / invalid-PAT → 401; authenticated → works.
+
+### Security is a filter chain, not inline
+Security is not inline in the transport — it is a chain of discrete `<servlet-filter>` modules at `location="before-dispatch"`, run by ascending weight:
+
+| Weight | Filter | Purpose |
+|--------|--------|---------|
+| 200 | `BodySizeLimitFilter` | Reject oversized request bodies |
+| 300 | `RateLimitFilter` | IP-based rate limiting |
+| 400 | `AccessControlFilter` | Auth + user/group allowlist + read-only |
+| 500 | `SessionBindingFilter` | Bind MCP session to authenticated principal |
+| 550 | `SecurityHeadersFilter` | Response security headers |
+| 600 | `McpTransportFilter` | The SDK streamable transport |
+
+Origin validation is **not** a filter — it is performed by the SDK's `DefaultServerTransportSecurityValidator` inside the transport.
 
 ### REST package scan must be specific
 Use `<package>com.atlassian.mcp.plugin.rest</package>` — never the parent package.
@@ -268,7 +298,10 @@ The code generator produces flat `requestBody.put("field", value)` for POST/PUT 
 Confluence does not have Jira's `ComponentAccessor`. Use `com.atlassian.sal.api.component.ComponentLocator` for getting beans outside DI context (e.g., in servlet filters).
 
 ### Confluence 10.x requires Java 21
-The `confluence-10.2.7.jar` contains classes compiled for Java 21 (class version 65.0). The plugin must compile with Java 21 (`maven.compiler.source/target=21`, `mise: temurin-21`). Attempting to compile with Java 17 will fail with "class file has wrong version 65.0, should be 61.0" on any Confluence-specific imports like `UserAccessor`.
+The `confluence-10.2.11.jar` contains classes compiled for Java 21 (class version 65.0). The plugin must compile with Java 21 (`maven.compiler.source/target=21`, `mise: temurin-21`). Attempting to compile with Java 17 will fail with "class file has wrong version 65.0, should be 61.0" on any Confluence-specific imports like `UserAccessor`.
+
+### Platform versions come from the platform-public-api BOM
+There is no public Confluence API BOM (no analog to Jira's `jira-api-bom`). Confluence's internal `confluence-project` parent imports `com.atlassian.platform.dependencies:platform-public-api` — we import that same BOM directly in `<dependencyManagement>` (`platform.dependencies.version`, e.g. `8.3.16` for Confluence 10.2.11). Provided platform deps (`sal-api`, `atlassian-plugins-api`, `atlassian-rest-v2-api`, `atlassian-template-renderer-api`, `jackson`, `jakarta.*`, `atlassian-annotations`) omit `<version>` and inherit from it. To track a new Confluence version, bump `confluence.version` + `platform.dependencies.version` to whatever that release's `confluence-project` POM uses. Use `atlassian-rest-v2-api` (not legacy `atlassian-rest-common`).
 
 ### UserAccessor for group membership
 Confluence uses `com.atlassian.confluence.user.UserAccessor.hasMembership(groupName, username)` for group checks — not Jira's `GroupManager`.
@@ -313,7 +346,7 @@ When adding new specialized tools, register any new Confluence macro tags they n
 
 ## Critical Rules
 
-- **Always use `javax.*`** imports, never `jakarta.*`
+- **Always use `jakarta.*`** imports, never `javax.*` (Confluence 10.x = Jakarta EE 10 / Tomcat 10.1)
 - **Plugin key is `com.atlassian.mcp.confluence-mcp-plugin`** everywhere
 - **Use `atlas-mvn`** for local builds, never plain `mvn`
 - **Use `just`** for all workflows — build, deploy, test, codegen

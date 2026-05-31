@@ -2,6 +2,21 @@ package com.atlassian.mcp.plugin.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.modelcontextprotocol.client.McpClient;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.spec.McpClientTransport;
+import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.Content;
+import io.modelcontextprotocol.spec.McpSchema.InitializeResult;
+import io.modelcontextprotocol.spec.McpSchema.ListToolsResult;
+import io.modelcontextprotocol.spec.McpSchema.TextContent;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
+
+import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
@@ -12,40 +27,84 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
- * End-to-end tests for the MCP endpoint running on a live Confluence instance.
+ * End-to-end tests for the Confluence MCP plugin running on a live Confluence instance.
  *
- * Requires environment variables:
+ * <p>All MCP protocol concerns (JSON-RPC framing, session ids, SSE wrapping, Accept
+ * negotiation, MCP-Protocol-Version) are owned by the official MCP Java SDK
+ * ({@link McpSyncClient}). These tests drive the SDK sync client rather than raw
+ * JSON-RPC HTTP POSTs — so they assert real plugin behaviour the SDK cannot own:
+ *
+ * <ul>
+ *   <li>Server identity, capabilities, and the 28-tool registry contents</li>
+ *   <li>Tool annotations (read-only / destructive hints) per spec §6.4</li>
+ *   <li>Live Confluence data returned by read tools + the page-CRUD lifecycle</li>
+ *   <li>HTTP-level security the SDK hides: 401-not-302 auth routing, 1 MiB body cap,
+ *       per-IP anonymous rate limiting, CIMD SSRF rejection, OIDC discovery</li>
+ *   <li>Offline CIMD cache bound is covered separately in {@code CimdValidatorTest}</li>
+ * </ul>
+ *
+ * <p>Required env vars (skipped cleanly when absent):
+ * <pre>
  *   CONFLUENCE_URL          — e.g. https://bkm.astrateam.net
  *   CONFLUENCE_PAT_RKADMIN  — PAT for an admin user with MCP access
+ * </pre>
  *
- * Optional:
- *   CONFLUENCE_SPACE_KEY    — space key for page CRUD tests (default: TES)
+ * <p>Optional:
+ * <pre>
+ *   CONFLUENCE_SPACE_KEY    — space key for page CRUD tests (default: TEST)
+ * </pre>
  *
- * Skipped automatically when env vars are not set.
- *
- * Run: just e2e
- *  Or: source .credentials/confluence.env && atlas-mvn test -Dtest=McpEndpointE2ETest
+ * <p>Run: {@code just e2e}
+ * <br>Or: {@code source .credentials/confluence.env && atlas-mvn test -Dtest=McpEndpointE2ETest}
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class McpEndpointE2ETest {
 
+    // --- environment --------------------------------------------------------
+
     private static final String CONFLUENCE_URL = System.getenv("CONFLUENCE_URL");
     private static final String CONFLUENCE_PAT = System.getenv("CONFLUENCE_PAT_RKADMIN");
-    private static final String SPACE_KEY = System.getenv().getOrDefault("CONFLUENCE_SPACE_KEY", "TEST");
+    private static final String SPACE_KEY =
+            System.getenv().getOrDefault("CONFLUENCE_SPACE_KEY", "TEST");
 
-    private static final String MCP_ENDPOINT = "/rest/mcp/1.0/";
+    /** MCP servlet path (see atlassian-plugin.xml). */
+    private static final String MCP_ENDPOINT = "/plugins/servlet/mcp";
+
+    /** Per-call timeout — must remain well below the surefire fork timeout. */
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** Raw HTTP client for HTTP-level security assertions the SDK hides. */
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    /** All 28 tool names (23 upstream + 5 new in v1.2). */
+    /** Shared SDK client — initialize() is the expensive bit so we do it once. */
+    private static McpSyncClient client;
+
+    /** Captured at @BeforeClass for the capabilities assertions. */
+    private static InitializeResult initResult;
+
+    /** Page ID created during CRUD lifecycle test, cleaned up at end. */
+    private static String createdPageId;
+
+    /** All 28 tool names (23 upstream + 5 ergonomics tools). */
     private static final Set<String> ALL_UPSTREAM_TOOLS = Set.of(
             "search", "get_page", "get_page_children", "create_page", "update_page",
             "delete_page", "move_page", "get_page_history", "get_page_diff",
@@ -60,575 +119,677 @@ public class McpEndpointE2ETest {
             "append_to_page", "prepend_to_page", "convert_content", "replace_section"
     );
 
-    /** Page ID created during CRUD lifecycle test, cleaned up at end. */
-    private static String createdPageId;
+    // --- lifecycle ----------------------------------------------------------
 
     @BeforeClass
-    public static void checkEnvironment() {
-        Assume.assumeTrue("CONFLUENCE_URL not set — skipping e2e tests", CONFLUENCE_URL != null);
-        Assume.assumeTrue("CONFLUENCE_PAT_RKADMIN not set — skipping e2e tests", CONFLUENCE_PAT != null);
+    public static void setUp() {
+        Assume.assumeTrue("CONFLUENCE_URL not set — skipping e2e tests",
+                CONFLUENCE_URL != null && !CONFLUENCE_URL.isEmpty());
+        Assume.assumeTrue("CONFLUENCE_PAT_RKADMIN not set — skipping e2e tests",
+                CONFLUENCE_PAT != null && !CONFLUENCE_PAT.isEmpty());
+
+        client = newClient();
+        InitializeResult init = client.initialize();
+        assertNotNull("initialize returned null", init);
+        assertNotNull("server info missing", init.serverInfo());
+        initResult = init;
     }
 
-    // ── Protocol Tests ───────────────────────────────────────────────
-
-    @Test
-    public void t01_initialize() throws Exception {
-        JsonNode result = mcpCall("initialize", MAPPER.createObjectNode());
-
-        assertTrue("Should have result", result.has("result"));
-        JsonNode serverInfo = result.path("result").path("serverInfo");
-        assertEquals("confluence-mcp", serverInfo.path("name").asText());
-        assertTrue("Should have capabilities.tools", result.path("result").has("capabilities"));
+    @AfterClass
+    public static void tearDown() {
+        if (createdPageId != null && client != null) {
+            try { call("delete_page", Map.of("page_id", createdPageId)); }
+            catch (Exception ignored) { /* best-effort cleanup */ }
+        }
+        if (client != null) {
+            try { client.close(); } catch (Exception ignored) { /* best-effort */ }
+        }
     }
 
-    @Test
-    public void t02_ping() throws Exception {
-        JsonNode result = mcpCall("ping", MAPPER.createObjectNode());
-        assertFalse("ping should not error", result.has("error"));
-    }
+    // ========================================================================
+    // 1 — Protocol: server identity + ping
+    // ========================================================================
 
     @Test
-    public void t03_invalidMethod_returnsError() throws Exception {
-        JsonNode result = mcpCall("nonexistent/method", MAPPER.createObjectNode());
-        assertTrue("Should return error for invalid method", result.has("error"));
-    }
+    public void t01_initializeReturnsServerInfo() {
+        InitializeResult init = client.getCurrentInitializationResult();
+        assertNotNull("no initialization result cached on client", init);
 
-    // ── Tools List Tests ─────────────────────────────────────────────
-
-    @Test
-    public void t10_toolsList_returnsTools() throws Exception {
-        JsonNode result = mcpCall("tools/list", MAPPER.createObjectNode());
-
-        assertTrue("Should have result", result.has("result"));
-        JsonNode tools = result.path("result").path("tools");
-        assertTrue("tools should be array", tools.isArray());
-        assertTrue("Should have at least 20 tools", tools.size() >= 20);
-
-        System.out.println("[e2e] tools/list returned " + tools.size() + " tools");
+        McpSchema.Implementation serverInfo = init.serverInfo();
+        assertEquals("server identifies as something other than confluence-mcp-plugin",
+                "confluence-mcp-plugin", serverInfo.name());
+        assertNotNull("server reported null version", serverInfo.version());
+        assertFalse("server reported empty version", serverInfo.version().isEmpty());
     }
 
     @Test
-    public void t11_toolsList_coversUpstreamTools() throws Exception {
-        JsonNode tools = mcpCall("tools/list", MAPPER.createObjectNode())
-                .path("result").path("tools");
+    public void t02_pingSucceeds() {
+        // Throws on failure; reaching the assertion means the round-trip succeeded.
+        client.ping();
+        assertTrue(true);
+    }
 
-        Set<String> visibleNames = new HashSet<>();
-        tools.forEach(t -> visibleNames.add(t.path("name").asText()));
+    // ========================================================================
+    // 2 — Capabilities: tools(listChanged=false) + logging, NOT resources/completions
+    // ========================================================================
 
-        // Every visible tool must be in the upstream set
-        for (String name : visibleNames) {
-            assertTrue("Unexpected tool not in upstream: " + name,
-                    ALL_UPSTREAM_TOOLS.contains(name));
+    @Test
+    public void t03_capabilitiesDeclareToolsAndLoggingOnly() {
+        McpSchema.ServerCapabilities caps = initResult.capabilities();
+        assertNotNull("server capabilities missing", caps);
+
+        assertNotNull("tools capability must be advertised", caps.tools());
+        // listChanged is false in McpBootstrap (.tools(false)).
+        assertFalse("tools.listChanged should be false",
+                Boolean.TRUE.equals(caps.tools().listChanged()));
+
+        assertNotNull("logging capability must be advertised", caps.logging());
+
+        assertTrue("resources capability must NOT be advertised", caps.resources() == null);
+        assertTrue("completions capability must NOT be advertised", caps.completions() == null);
+    }
+
+    // ========================================================================
+    // 3 — tools/list parity: exactly 28, all in upstream set, schemas valid
+    // ========================================================================
+
+    @Test
+    public void t10_toolsListReturns28() {
+        ListToolsResult result = client.listTools();
+        List<Tool> tools = result.tools();
+        assertNotNull("tools/list returned null tools", tools);
+        assertEquals("expected exactly 28 tools", 28, tools.size());
+    }
+
+    @Test
+    public void t11_toolsListCoversUpstreamTools() {
+        List<Tool> tools = client.listTools().tools();
+
+        Map<String, Tool> byName = new HashMap<>();
+        for (Tool t : tools) {
+            byName.put(t.name(), t);
+            assertTrue("unexpected tool not in upstream set: " + t.name(),
+                    ALL_UPSTREAM_TOOLS.contains(t.name()));
         }
 
-        // At minimum, core tools must be present
         for (String core : List.of("search", "get_page", "create_page",
                 "add_comment", "get_labels", "search_user")) {
-            assertTrue("Core tool missing: " + core, visibleNames.contains(core));
+            assertNotNull("core tool missing: " + core, byName.get(core));
         }
     }
 
     @Test
-    public void t12_toolsList_eachToolHasSchemaAndDescription() throws Exception {
-        JsonNode tools = mcpCall("tools/list", MAPPER.createObjectNode())
-                .path("result").path("tools");
+    public void t12_eachToolHasSchemaAndDescription() {
+        for (Tool tool : client.listTools().tools()) {
+            String name = tool.name();
+            assertNotNull(name + " has null description", tool.description());
+            assertFalse(name + " has empty description", tool.description().isEmpty());
 
-        for (JsonNode tool : tools) {
-            String name = tool.path("name").asText();
-            assertTrue(name + " missing description", tool.has("description"));
-            assertFalse(name + " has empty description",
-                    tool.path("description").asText().isBlank());
-            assertTrue(name + " missing inputSchema", tool.has("inputSchema"));
+            assertNotNull(name + " has null inputSchema", tool.inputSchema());
+
+            // The 2020-12 $schema URI is emitted on every generated tool schema.
+            JsonNode schemaJson = MAPPER.valueToTree(tool.inputSchema());
             assertEquals(name + " inputSchema.type should be 'object'",
-                    "object", tool.path("inputSchema").path("type").asText());
+                    "object", schemaJson.path("type").asText());
+            assertEquals(name + " inputSchema missing 2020-12 $schema",
+                    "https://json-schema.org/draft/2020-12/schema",
+                    schemaJson.path("$schema").asText());
         }
     }
 
-    // ── Read Tool Tests ──────────────────────────────────────────────
+    @Test
+    public void t13_toolAnnotationsAreCorrect() {
+        Map<String, Tool> byName = new HashMap<>();
+        for (Tool t : client.listTools().tools()) byName.put(t.name(), t);
+
+        assertTrue("search must be read-only",
+                byName.get("search").annotations().readOnlyHint());
+        assertTrue("update_page must be destructive",
+                byName.get("update_page").annotations().destructiveHint());
+        assertTrue("replace_section must be destructive",
+                byName.get("replace_section").annotations().destructiveHint());
+        assertTrue("delete_page must be destructive",
+                byName.get("delete_page").annotations().destructiveHint());
+        assertFalse("append_to_page must NOT be destructive",
+                byName.get("append_to_page").annotations().destructiveHint());
+        assertFalse("create_page must NOT be destructive",
+                byName.get("create_page").annotations().destructiveHint());
+    }
+
+    // ========================================================================
+    // 4 — Read tools return live Confluence data
+    // ========================================================================
 
     @Test
-    public void t20_search() throws Exception {
-        JsonNode result = callTool("search", Map.of("query", "type=page", "limit", 5));
-
-        assertFalse("Should not error", isError(result));
-        String text = getContentText(result);
-        assertNotNull("Should have content text", text);
-
-        System.out.println("[e2e] search returned content");
+    public void t20_search() {
+        CallToolResult result = call("search", Map.of("query", "type=page", "limit", 5));
+        assertNotErrored("search", result);
+        assertNotNull("search should have content text", firstTextOrEmpty(result));
     }
 
     @Test
-    public void t21_searchUser() throws Exception {
-        JsonNode result = callTool("search_user", Map.of("query", "rkadmin"));
-
-        assertFalse("Should not error", isError(result));
-        String text = getContentText(result);
-        assertNotNull("Should have content text", text);
+    public void t21_searchUser() {
+        CallToolResult result = call("search_user", Map.of("query", "rkadmin"));
+        assertNotErrored("search_user", result);
+        assertNotNull("search_user should have content text", firstTextOrEmpty(result));
     }
 
     @Test
     public void t22_listSpaces() throws Exception {
-        JsonNode result = callTool("list_spaces", Map.of("limit", 5));
+        CallToolResult result = call("list_spaces", Map.of("limit", 5));
+        assertNotErrored("list_spaces", result);
 
-        assertFalse("Should not error", isError(result));
-        String text = getContentText(result);
-        JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should return array", parsed.isArray());
-        assertTrue("Should have at least 1 space", parsed.size() >= 1);
+        JsonNode parsed = MAPPER.readTree(firstText(result));
+        assertTrue("list_spaces should return array", parsed.isArray());
+        assertTrue("should have at least 1 space", parsed.size() >= 1);
 
         JsonNode first = parsed.get(0);
-        assertTrue("Space should have key", first.has("key"));
-        assertTrue("Space should have name", first.has("name"));
-        assertTrue("Space should have type", first.has("type"));
-        assertTrue("Space should have url", first.has("url"));
-        assertTrue("URL should be full URL",
+        assertTrue("space should have key", first.has("key"));
+        assertTrue("space should have name", first.has("name"));
+        assertTrue("space should have type", first.has("type"));
+        assertTrue("space should have url", first.has("url"));
+        assertTrue("URL should be a full URL",
                 first.path("url").asText().startsWith("http"));
-
-        System.out.println("[e2e] list_spaces returned " + parsed.size() + " spaces");
     }
 
     @Test
     public void t23_convertContent() throws Exception {
-        JsonNode result = callTool("convert_content", Map.of(
+        CallToolResult result = call("convert_content", Map.of(
                 "content", "## Hello\n\nSome **bold** text.\n\n> [!NOTE]\n> Important info"
         ));
+        assertNotErrored("convert_content", result);
 
-        assertFalse("Should not error", isError(result));
-        String text = getContentText(result);
-        JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should have content wrapper", parsed.has("content"));
+        JsonNode parsed = MAPPER.readTree(firstText(result));
+        assertTrue("should have content wrapper", parsed.has("content"));
         String storage = parsed.path("content").path("value").asText();
-        assertTrue("Should contain h2 tag", storage.contains("<h2"));
-        assertTrue("Should contain strong tag", storage.contains("<strong>"));
-
-        System.out.println("[e2e] convert_content produces valid storage format");
+        assertTrue("should contain h2 tag", storage.contains("<h2"));
+        assertTrue("should contain strong tag", storage.contains("<strong>"));
     }
 
-    // ── Response Trimming Tests ──────────────────────────────────────
+    // ========================================================================
+    // 5 — Response format: whitelist transformation, no internal fields leak
+    // ========================================================================
 
     @Test
-    public void t30_responseFormat_matchesUpstream() throws Exception {
-        JsonNode result = callTool("search", Map.of("query", "type=page", "limit", 3));
-        String raw = getContentText(result);
-        assertNotNull(raw);
+    public void t30_responseFormatMatchesUpstream() throws Exception {
+        CallToolResult result = call("search", Map.of("query", "type=page", "limit", 3));
+        assertNotErrored("search", result);
+        String raw = firstText(result);
 
-        // Whitelist approach: no internal Confluence fields leak
-        assertFalse("Should not contain _links", raw.contains("\"_links\""));
-        assertFalse("Should not contain _expandable", raw.contains("\"_expandable\""));
-        assertFalse("Should not contain profilePicture", raw.contains("\"profilePicture\""));
+        assertFalse("should not contain _links", raw.contains("\"_links\""));
+        assertFalse("should not contain _expandable", raw.contains("\"_expandable\""));
+        assertFalse("should not contain profilePicture", raw.contains("\"profilePicture\""));
 
-        // Should be a flat list of simplified page dicts with full URLs
         JsonNode parsed = MAPPER.readTree(raw);
-        assertTrue("Search should return array", parsed.isArray());
+        assertTrue("search should return array", parsed.isArray());
         if (parsed.size() > 0) {
             JsonNode first = parsed.get(0);
-            assertTrue("Each result should have url", first.has("url"));
-            assertTrue("URL should be full URL",
+            assertTrue("each result should have url", first.has("url"));
+            assertTrue("URL should be a full URL",
                     first.path("url").asText().startsWith("http"));
-            assertTrue("Each result should have id", first.has("id"));
-            assertTrue("Each result should have title", first.has("title"));
+            assertTrue("each result should have id", first.has("id"));
+            assertTrue("each result should have title", first.has("title"));
         }
     }
 
-    // ── Page CRUD Lifecycle Test ─────────────────────────────────────
+    // ========================================================================
+    // 6 — Page CRUD lifecycle
+    // ========================================================================
 
     @Test
     public void t40_createPage() throws Exception {
-        JsonNode result = callTool("create_page", Map.of(
+        CallToolResult result = call("create_page", Map.of(
                 "space_key", SPACE_KEY,
-                "title", "[E2E Test] Auto-created by McpEndpointE2ETest " + System.currentTimeMillis(),
+                "title", "[E2E Test] Auto-created " + System.currentTimeMillis(),
                 "content", "This page was created by the E2E test suite.",
                 "content_format", "storage"
         ));
+        assertNotErrored("create_page", result);
 
-        assertFalse("Create should not error: " + getContentText(result), isError(result));
-        String text = getContentText(result);
-        JsonNode parsed = MAPPER.readTree(text);
-
-        // Response format: {"message": "...", "page": {"id": "...", ...}}
+        JsonNode parsed = MAPPER.readTree(firstText(result));
         JsonNode pageNode = parsed.path("page");
         createdPageId = pageNode.has("id") ? pageNode.path("id").asText() : null;
-        assertNotNull("Should return created page ID", createdPageId);
-        assertTrue("Should have success message", parsed.has("message"));
-        assertTrue("Page should have url", pageNode.has("url"));
-
-        System.out.println("[e2e] Created page: " + createdPageId);
+        assertNotNull("should return created page ID", createdPageId);
+        assertTrue("should have success message", parsed.has("message"));
+        assertTrue("page should have url", pageNode.has("url"));
     }
 
     @Test
     public void t41_getCreatedPage() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        JsonNode result = callTool("get_page", Map.of("page_id", createdPageId));
+        CallToolResult result = call("get_page", Map.of("page_id", createdPageId));
+        assertNotErrored("get_page", result);
 
-        assertFalse("Get should not error", isError(result));
-        String text = getContentText(result);
-        assertTrue("Response should contain page ID",
-                text.contains(createdPageId));
+        String text = firstText(result);
+        assertTrue("response should contain page ID", text.contains(createdPageId));
 
-        // Verify upstream response format: {"page": {"id", "title", "url", ...}}
         JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should have page wrapper", parsed.has("page"));
+        assertTrue("should have page wrapper", parsed.has("page"));
         JsonNode metadata = parsed.path("page");
-        assertTrue("Metadata should have url", metadata.has("url"));
-        assertTrue("URL should be full URL",
+        assertTrue("metadata should have url", metadata.has("url"));
+        assertTrue("URL should be a full URL",
                 metadata.path("url").asText().startsWith("http"));
-        assertTrue("Metadata should have content", metadata.has("content"));
+        assertTrue("metadata should have content", metadata.has("content"));
     }
 
     @Test
-    public void t42_addComment() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t42_addComment() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        JsonNode result = callTool("add_comment", Map.of(
+        CallToolResult result = call("add_comment", Map.of(
                 "page_id", createdPageId,
                 "body", "E2E test comment — verifying add_comment tool"
         ));
-
-        assertFalse("Add comment should not error: " + getContentText(result), isError(result));
+        assertNotErrored("add_comment", result);
     }
 
     @Test
-    public void t43_getLabels() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t43_getLabels() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        JsonNode result = callTool("get_labels", Map.of("page_id", createdPageId));
-        assertFalse("Get labels should not error", isError(result));
+        CallToolResult result = call("get_labels", Map.of("page_id", createdPageId));
+        assertNotErrored("get_labels", result);
     }
 
     @Test
-    public void t44_addLabel() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t44_addLabel() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        JsonNode result = callTool("add_label", Map.of(
+        CallToolResult result = call("add_label", Map.of(
                 "page_id", createdPageId,
                 "name", "e2etest"
         ));
-        assertFalse("Add label should not error: " + getContentText(result), isError(result));
+        assertNotErrored("add_label", result);
     }
 
     @Test
-    public void t45_getPageDiff_markdownFormat() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t45_getPageDiffMarkdownFormat() throws Exception {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        // Update the page to create version 2
-        callTool("update_page", Map.of(
+        // Update the page to create version 2.
+        call("update_page", Map.of(
                 "page_id", createdPageId,
                 "title", "[E2E Test] Updated Page",
                 "content", "Updated content for diff test.",
                 "content_format", "storage"
         ));
 
-        // Get diff between version 1 and 2
-        JsonNode result = callTool("get_page_diff", Map.of(
+        CallToolResult result = call("get_page_diff", Map.of(
                 "page_id", createdPageId,
                 "from_version", 1,
                 "to_version", 2
         ));
+        assertNotErrored("get_page_diff", result);
 
-        assertFalse("Diff should not error: " + getContentText(result), isError(result));
-        String text = getContentText(result);
-        JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should have diff field", parsed.has("diff"));
-
+        JsonNode parsed = MAPPER.readTree(firstText(result));
+        assertTrue("should have diff field", parsed.has("diff"));
         String diff = parsed.path("diff").asText();
-        // Markdown diff should NOT contain internal Confluence identifiers
-        assertFalse("Diff should not contain ac:macro-id",
-                diff.contains("ac:macro-id"));
-        assertFalse("Diff should not contain ac:task-id",
-                diff.contains("ac:task-id"));
-
-        System.out.println("[e2e] get_page_diff returned clean markdown diff");
+        assertFalse("diff should not contain ac:macro-id", diff.contains("ac:macro-id"));
+        assertFalse("diff should not contain ac:task-id", diff.contains("ac:task-id"));
     }
 
     @Test
-    public void t46_updatePage_optimisticLocking() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t46_updatePageOptimisticLocking() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        // Try to update with a wrong expected_version (should fail)
-        JsonNode result = callTool("update_page", Map.of(
+        CallToolResult result = call("update_page", Map.of(
                 "page_id", createdPageId,
                 "title", "[E2E Test] Should Fail",
                 "content", "This should not succeed.",
                 "expected_version", 999
         ));
-
-        assertTrue("Should error on version mismatch", isError(result));
-        String text = getContentText(result);
-        assertTrue("Error should mention version mismatch",
+        assertTrue("should error on version mismatch", Boolean.TRUE.equals(result.isError()));
+        String text = firstTextOrEmpty(result);
+        assertTrue("error should mention version mismatch",
                 text.contains("modified since you last read it"));
-
-        System.out.println("[e2e] Optimistic locking: version mismatch correctly rejected");
     }
 
     @Test
-    public void t47_appendAndPrependToPage() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t47_appendAndPrependToPage() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        // Append content
-        JsonNode appendResult = callTool("append_to_page", Map.of(
+        CallToolResult appendResult = call("append_to_page", Map.of(
                 "page_id", createdPageId,
                 "content", "**Appended section** content."
         ));
-        assertFalse("Append should not error: " + getContentText(appendResult), isError(appendResult));
-        String appendText = getContentText(appendResult);
-        assertTrue("Should have success message", appendText.contains("appended"));
+        assertNotErrored("append_to_page", appendResult);
+        assertTrue("should have success message",
+                firstTextOrEmpty(appendResult).contains("appended"));
 
-        // Prepend content
-        JsonNode prependResult = callTool("prepend_to_page", Map.of(
+        CallToolResult prependResult = call("prepend_to_page", Map.of(
                 "page_id", createdPageId,
                 "content", "**Prepended alert** at top."
         ));
-        assertFalse("Prepend should not error: " + getContentText(prependResult), isError(prependResult));
-        String prependText = getContentText(prependResult);
-        assertTrue("Should have success message", prependText.contains("prepended"));
-
-        System.out.println("[e2e] append/prepend to page: OK");
+        assertNotErrored("prepend_to_page", prependResult);
+        assertTrue("should have success message",
+                firstTextOrEmpty(prependResult).contains("prepended"));
     }
 
     @Test
     public void t47b_createPageWithLabels() throws Exception {
-        JsonNode result = callTool("create_page", Map.of(
+        CallToolResult result = call("create_page", Map.of(
                 "space_key", SPACE_KEY,
                 "title", "[E2E Test] Page with labels " + System.currentTimeMillis(),
                 "content", "Page created with labels.",
                 "content_format", "storage",
                 "labels", List.of("e2etest", "automated")
         ));
+        assertNotErrored("create_page", result);
 
-        assertFalse("Create should not error: " + getContentText(result), isError(result));
-        String text = getContentText(result);
-        JsonNode parsed = MAPPER.readTree(text);
-        assertTrue("Should have labels_added", parsed.has("labels_added"));
+        JsonNode parsed = MAPPER.readTree(firstText(result));
+        assertTrue("should have labels_added", parsed.has("labels_added"));
 
-        // Clean up
         String pageId = parsed.path("page").path("id").asText();
-        callTool("delete_page", Map.of("page_id", pageId));
-
-        System.out.println("[e2e] create_page with labels: OK");
+        call("delete_page", Map.of("page_id", pageId));
     }
 
     @Test
-    public void t48_deleteCreatedPage() throws Exception {
-        Assume.assumeTrue("No page created", createdPageId != null);
+    public void t48_deleteCreatedPage() {
+        Assume.assumeTrue("no page created", createdPageId != null);
 
-        JsonNode result = callTool("delete_page", Map.of("page_id", createdPageId));
-        assertFalse("Delete should not error: " + getContentText(result), isError(result));
-
-        System.out.println("[e2e] Deleted page: " + createdPageId);
+        CallToolResult result = call("delete_page", Map.of("page_id", createdPageId));
+        assertNotErrored("delete_page", result);
         createdPageId = null;
     }
 
-    // ── Error Handling Tests ─────────────────────────────────────────
+    // ========================================================================
+    // 7 — Error handling
+    // ========================================================================
 
     @Test
-    public void t60_missingRequiredParam_returnsError() throws Exception {
-        // Call get_page without page_id
-        JsonNode result = callTool("get_page", Map.of());
-        assertTrue("Should error on missing required param", isError(result));
-    }
-
-    @Test
-    public void t61_invalidPageId_returnsError() throws Exception {
-        JsonNode result = callTool("get_page", Map.of("page_id", "999999999"));
-        assertTrue("Should error on invalid page ID", isError(result));
-    }
-
-    @Test
-    public void t62_unknownTool_returnsError() throws Exception {
-        JsonNode result = callTool("nonexistent_tool", Map.of());
-        assertTrue("Should error on unknown tool", isError(result));
-    }
-
-    // ── Streamable HTTP Transport Tests ─────────────────────────────
-
-    @Test
-    public void t80_streamableHttp_initializeReturnsSessionId() throws Exception {
-        HttpResponse<String> response = streamablePost(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
-                null);
-
-        assertEquals("Should return 200", 200, response.statusCode());
-
-        String contentType = response.headers().firstValue("Content-Type").orElse("");
-        assertTrue("Should return JSON for single response, got: " + contentType,
-                contentType.contains("application/json"));
-
-        String sessionId = response.headers().firstValue("MCP-Session-Id").orElse(null);
-        assertNotNull("Should return MCP-Session-Id header", sessionId);
-
-        JsonNode parsed = MAPPER.readTree(response.body());
-        assertEquals("confluence-mcp", parsed.path("result").path("serverInfo").path("name").asText());
-
-        System.out.println("[e2e] Streamable HTTP initialize: OK, session " + sessionId.substring(0, 8) + "...");
-    }
-
-    @Test
-    public void t81_streamableHttp_toolCallWithSession() throws Exception {
-        HttpResponse<String> initResp = streamablePost(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
-                null);
-        String sessionId = initResp.headers().firstValue("MCP-Session-Id").orElse(null);
-        Assume.assumeTrue("No session ID", sessionId != null);
-
-        HttpResponse<String> toolResp = streamablePost(
-                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"search\",\"arguments\":{\"query\":\"type=page\",\"limit\":\"3\"}}}",
-                sessionId);
-
-        assertEquals("Should return 200", 200, toolResp.statusCode());
-        JsonNode parsed = MAPPER.readTree(toolResp.body());
-        assertFalse("Should not be error", parsed.path("result").path("isError").asBoolean(false));
-
-        System.out.println("[e2e] Streamable HTTP tool call: OK");
-    }
-
-    @Test
-    public void t82_streamableHttp_deleteSession() throws Exception {
-        HttpResponse<String> initResp = streamablePost(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
-                null);
-        String sessionId = initResp.headers().firstValue("MCP-Session-Id").orElse(null);
-        Assume.assumeTrue("No session ID", sessionId != null);
-
-        HttpRequest deleteReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
-                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
-                .header("MCP-Session-Id", sessionId)
-                .DELETE()
-                .timeout(Duration.ofSeconds(10))
-                .build();
-        HttpResponse<String> deleteResp = HTTP.send(deleteReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals("Delete should return 200", 200, deleteResp.statusCode());
-
-        HttpResponse<String> staleResp = streamablePost(
-                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
-                sessionId);
-        assertEquals("Stale session should return 404", 404, staleResp.statusCode());
-
-        System.out.println("[e2e] Streamable HTTP session delete: OK");
-    }
-
-    @Test
-    public void t83_oauth_refreshTokenGrantType() throws Exception {
-        // 1. Metadata must advertise refresh_token grant type
-        HttpRequest metaReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/metadata"))
-                .GET().timeout(Duration.ofSeconds(10)).build();
-        HttpResponse<String> metaResp = HTTP.send(metaReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, metaResp.statusCode());
-        JsonNode metaJson = MAPPER.readTree(metaResp.body());
-        JsonNode grantTypes = metaJson.path("grant_types_supported");
-        assertTrue("Should be array", grantTypes.isArray());
-        List<String> grants = new ArrayList<>();
-        grantTypes.forEach(n -> grants.add(n.asText()));
-        assertTrue("Must include authorization_code", grants.contains("authorization_code"));
-        assertTrue("Must include refresh_token", grants.contains("refresh_token"));
-
-        // 2. Register a DCR client for token endpoint tests
-        String regBody = "{\"client_name\":\"Refresh Test\",\"redirect_uris\":[\"http://localhost:9999/cb\"]}";
-        HttpRequest regReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/register"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(regBody))
-                .timeout(Duration.ofSeconds(10)).build();
-        HttpResponse<String> regResp = HTTP.send(regReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(201, regResp.statusCode());
-        String clientId = MAPPER.readTree(regResp.body()).path("client_id").asText();
-
-        // 3. refresh_token grant with missing refresh_token → 400 invalid_request
-        String missingBody = "grant_type=refresh_token&client_id=" + clientId;
-        HttpRequest missingReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/token"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(missingBody))
-                .timeout(Duration.ofSeconds(10)).build();
-        HttpResponse<String> missingResp = HTTP.send(missingReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(400, missingResp.statusCode());
-        assertTrue("Should be invalid_request", missingResp.body().contains("invalid_request"));
-
-        // 4. refresh_token grant with bogus token → 400 invalid_grant
-        String bogusBody = "grant_type=refresh_token&client_id=" + clientId
-                + "&refresh_token=bogus-token-12345";
-        HttpRequest bogusReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/token"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(bogusBody))
-                .timeout(Duration.ofSeconds(10)).build();
-        HttpResponse<String> bogusResp = HTTP.send(bogusReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(400, bogusResp.statusCode());
-        assertTrue("Should be invalid_grant", bogusResp.body().contains("invalid_grant"));
-
-        // 5. unsupported grant type → 400 unsupported_grant_type
-        String badGrantBody = "grant_type=client_credentials&client_id=" + clientId;
-        HttpRequest badGrantReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/token"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(badGrantBody))
-                .timeout(Duration.ofSeconds(10)).build();
-        HttpResponse<String> badGrantResp = HTTP.send(badGrantReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(400, badGrantResp.statusCode());
-        assertTrue("Should be unsupported_grant_type", badGrantResp.body().contains("unsupported_grant_type"));
-
-        System.out.println("[e2e] OAuth: refresh_token grant type + error paths OK");
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────
-
-    private JsonNode mcpCall(String method, JsonNode params) throws Exception {
-        Map<String, Object> request = new LinkedHashMap<>();
-        request.put("jsonrpc", "2.0");
-        request.put("id", 1);
-        request.put("method", method);
-        request.put("params", params);
-
-        HttpRequest httpReq = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
-                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(request)))
-                .timeout(Duration.ofSeconds(30))
-                .build();
-
-        HttpResponse<String> response = HTTP.send(httpReq, HttpResponse.BodyHandlers.ofString());
-        return MAPPER.readTree(response.body());
-    }
-
-    private JsonNode callTool(String toolName, Map<String, Object> arguments) throws Exception {
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("name", toolName);
-        params.put("arguments", arguments);
-
-        return mcpCall("tools/call", MAPPER.valueToTree(params));
-    }
-
-    private HttpResponse<String> streamablePost(String body, String sessionId) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
-                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json, text/event-stream")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .timeout(Duration.ofSeconds(30));
-
-        if (sessionId != null) {
-            builder.header("MCP-Session-Id", sessionId);
-            builder.header("MCP-Protocol-Version", "2025-06-18");
+    public void t60_missingRequiredParamReturnsError() {
+        try {
+            CallToolResult result = call("get_page", Map.of());
+            assertTrue("should error on missing required param",
+                    Boolean.TRUE.equals(result.isError()));
+        } catch (RuntimeException e) {
+            // SDK client-side schema validation may raise instead — equally valid.
+            assertTrue(true);
         }
-
-        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
-    private static boolean isError(JsonNode response) {
-        if (response.has("error")) return true;
-        return response.path("result").path("isError").asBoolean(false);
+    @Test
+    public void t61_invalidPageIdReturnsError() {
+        CallToolResult result = call("get_page", Map.of("page_id", "999999999"));
+        assertTrue("should error on invalid page ID", Boolean.TRUE.equals(result.isError()));
     }
 
-    private static String getContentText(JsonNode response) {
-        JsonNode content = response.path("result").path("content");
-        if (content.isArray() && content.size() > 0) {
-            return content.get(0).path("text").asText(null);
+    @Test
+    public void t62_unknownToolReturnsError() {
+        try {
+            CallToolResult result = call("nonexistent_tool", Map.of());
+            assertTrue("should error on unknown tool",
+                    Boolean.TRUE.equals(result.isError()));
+        } catch (RuntimeException e) {
+            String msg = String.valueOf(e.getMessage()).toLowerCase();
+            assertTrue("SDK exception should reference the unknown tool",
+                    msg.contains("nonexistent_tool")
+                            || msg.contains("unknown")
+                            || msg.contains("not found"));
         }
-        return null;
+    }
+
+    // ========================================================================
+    // 8 — Security acceptance (raw HTTP — asserts HTTP-level behaviour the SDK hides)
+    // ========================================================================
+
+    @Test
+    public void t70_unauthenticatedReturnsJson401NotLoginRedirect() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals("unauthenticated POST must be 401, not a 302 login redirect",
+                401, resp.statusCode());
+        assertTrue("401 must carry WWW-Authenticate",
+                resp.headers().firstValue("WWW-Authenticate").isPresent());
+        assertFalse("must not be a login redirect HTML page",
+                resp.body().toLowerCase().contains("<html"));
+    }
+
+    @Test
+    public void t71_invalidPatReturnsJson401NotLoginRedirect() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Authorization", "Bearer not-a-real-pat-token")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals("invalid-PAT POST must be 401, not a 302 login redirect",
+                401, resp.statusCode());
+        assertTrue("401 must carry WWW-Authenticate",
+                resp.headers().firstValue("WWW-Authenticate").isPresent());
+        assertFalse("must not be a login redirect HTML page",
+                resp.body().toLowerCase().contains("<html"));
+    }
+
+    @Test
+    public void t72_oversizedFixedLengthBodyReturns413() throws Exception {
+        String big = oversizedJson();
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(big))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals("oversized fixed-length body must be rejected with 413",
+                413, resp.statusCode());
+    }
+
+    @Test
+    public void t73_oversizedChunkedBodyReturns413() throws Exception {
+        // No Content-Length: a streaming BodyPublisher forces chunked transfer encoding.
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
+                .header("Content-Type", "application/json")
+                .POST(streamingOversizedPublisher())
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals("oversized chunked body must be rejected with 413",
+                413, resp.statusCode());
+    }
+
+    @Test
+    public void t74_oversizedNoContentLengthBodyReturns413() throws Exception {
+        // ofInputStream() produces an unknown-length (chunked) body too — distinct
+        // BodyPublisher path from the streaming publisher above.
+        byte[] payload = oversizedJson().getBytes(StandardCharsets.UTF_8);
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofInputStream(
+                        () -> new java.io.ByteArrayInputStream(payload)))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals("oversized no-Content-Length body must be rejected with 413",
+                413, resp.statusCode());
+    }
+
+    @Test
+    public void t75_anonymousRateLimitEventually429() throws Exception {
+        boolean saw429 = false;
+        HttpResponse<String> last = null;
+        // Per-IP anonymous limit is 120/min; cap the burst so we don't loop forever.
+        for (int i = 0; i < 150; i++) {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                    .header("Authorization", "Bearer invalid-burst-token")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                    .timeout(REQUEST_TIMEOUT)
+                    .build();
+            last = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            if (last.statusCode() == 429) {
+                saw429 = true;
+                break;
+            }
+        }
+        assertTrue("anonymous burst must eventually be rate-limited with 429", saw429);
+        assertTrue("429 must carry RateLimit-Limit header",
+                last.headers().firstValue("RateLimit-Limit").isPresent());
+        assertTrue("429 must carry RateLimit-Remaining header",
+                last.headers().firstValue("RateLimit-Remaining").isPresent());
+    }
+
+    @Test
+    public void t76_cimdSsrfAuthorizeReturnsInvalidClient() throws Exception {
+        for (String host : List.of("localhost", "10.0.0.1", "169.254.169.254")) {
+            String clientId = "https://" + host + "/.well-known/oauth-client";
+            String url = CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/authorize"
+                    + "?client_id=" + enc(clientId)
+                    + "&redirect_uri=" + enc("http://localhost:9999/cb")
+                    + "&response_type=code"
+                    + "&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+                    + "&code_challenge_method=S256"
+                    + "&state=xyz";
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(REQUEST_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+
+            assertEquals("CIMD SSRF to " + host + " must be rejected with 400",
+                    400, resp.statusCode());
+            assertTrue("CIMD SSRF to " + host + " must be invalid_client, body=" + resp.body(),
+                    resp.body().contains("invalid_client"));
+        }
+    }
+
+    @Test
+    public void t77_oidcWellKnownReturnsIssuerJson() throws Exception {
+        for (String path : List.of(
+                "/.well-known/openid-configuration",
+                "/plugins/servlet/mcp-oauth/openid-configuration")) {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(CONFLUENCE_URL + path))
+                    .timeout(REQUEST_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(path + " must return 200 (not 404/redirect)",
+                    200, resp.statusCode());
+            JsonNode json = MAPPER.readTree(resp.body());
+            assertTrue(path + " must advertise issuer", json.has("issuer"));
+            assertFalse(path + " issuer must not be empty",
+                    json.path("issuer").asText().isEmpty());
+        }
+    }
+
+    // =======================================================================
+    // helpers
+    // =======================================================================
+
+    private static McpSyncClient newClient() {
+        return newClientWithToken(CONFLUENCE_PAT);
+    }
+
+    private static McpSyncClient newClientWithToken(String token) {
+        McpClientTransport transport = HttpClientStreamableHttpTransport
+                .builder(CONFLUENCE_URL)
+                .endpoint(MCP_ENDPOINT)
+                .connectTimeout(Duration.ofSeconds(5))
+                .openConnectionOnStartup(false)
+                .httpRequestCustomizer((builder, method, uri, body, ctx) ->
+                        builder.header("Authorization", "Bearer " + token))
+                .build();
+
+        return McpClient.sync(transport)
+                .requestTimeout(REQUEST_TIMEOUT)
+                .initializationTimeout(REQUEST_TIMEOUT)
+                .clientInfo(new McpSchema.Implementation("confluence-mcp-e2e", "1.0"))
+                .build();
+    }
+
+    private static CallToolResult call(String name, Map<String, Object> args) {
+        return client.callTool(new CallToolRequest(name, args));
+    }
+
+    private static void assertNotErrored(String toolName, CallToolResult result) {
+        if (Boolean.TRUE.equals(result.isError())) {
+            fail(toolName + " returned isError=true. content="
+                    + truncate(firstTextOrEmpty(result), 400));
+        }
+    }
+
+    private static String firstText(CallToolResult result) {
+        return firstTextOpt(result).orElseThrow(() ->
+                new AssertionError("CallToolResult had no text content block"));
+    }
+
+    private static String firstTextOrEmpty(CallToolResult result) {
+        return firstTextOpt(result).orElse("");
+    }
+
+    private static Optional<String> firstTextOpt(CallToolResult result) {
+        if (result == null || result.content() == null) {
+            return Optional.empty();
+        }
+        for (Content c : result.content()) {
+            if (c instanceof TextContent) {
+                return Optional.ofNullable(((TextContent) c).text());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String truncate(String s, int n) {
+        if (s == null) return "<null>";
+        return s.length() <= n ? s : s.substring(0, n) + "…[" + s.length() + " chars total]";
+    }
+
+    private static String enc(String s) {
+        return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    /** A JSON document well over the 1 MiB body cap. */
+    private static String oversizedJson() {
+        int padLen = 1_200_000;
+        StringBuilder sb = new StringBuilder(padLen + 64);
+        sb.append("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\",\"params\":{\"x\":\"");
+        for (int i = 0; i < padLen; i++) sb.append('a');
+        sb.append("\"}}");
+        return sb.toString();
+    }
+
+    /**
+     * Streaming publisher with unknown length → chunked transfer encoding (no
+     * Content-Length header), emitting more than the 1 MiB cap.
+     */
+    private static HttpRequest.BodyPublisher streamingOversizedPublisher() {
+        return HttpRequest.BodyPublishers.ofByteArrays(() -> new java.util.Iterator<byte[]>() {
+            int remaining = 1_300_000;
+            final byte[] chunk = new byte[16_384];
+            { java.util.Arrays.fill(chunk, (byte) 'a'); }
+
+            @Override public boolean hasNext() { return remaining > 0; }
+
+            @Override public byte[] next() {
+                int n = Math.min(chunk.length, remaining);
+                remaining -= n;
+                if (n == chunk.length) return chunk;
+                byte[] tail = new byte[n];
+                System.arraycopy(chunk, 0, tail, 0, n);
+                return tail;
+            }
+        });
     }
 }

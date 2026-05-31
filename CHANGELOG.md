@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2] - 2026-05-31
+
+### Security
+
+- **OAuth endpoint hardening — parity with jira-mcp-plugin's OAuthServlet** (the sibling plugin was ahead on three items):
+  - **`RateLimit-*` headers on every OAuth endpoint** — `/metadata`, `/protected-resource`, `/openid-configuration`, `/authorize`, `/register`, `/token` now emit `RateLimit-Limit/Remaining/Reset` (and `Retry-After` derived from the bucket reset on 429) per draft-ietf-httpapi-ratelimit-headers-09, via a new `enforceRate` gate replacing the header-less `sendRateLimited`
+  - **CIMD re-validation on `/token`** — a CIMD-style (`https://`) `client_id` is re-resolved at token time, catching revoked/mutated Client ID Metadata Documents between `/authorize` and `/token`; failure returns `invalid_client`. No-op for DCR clients
+  - **Log-injection sanitization** — `client_id` is now passed through `sanitizeLog()` in the authorize CIMD-failure and redirect_uri-mismatch warnings (CR/LF/tab stripped)
+
 ## [1.2.1] - 2026-05-31
 
 ### Fixed

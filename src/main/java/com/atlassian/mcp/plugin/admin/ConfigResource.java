@@ -3,12 +3,21 @@ package com.atlassian.mcp.plugin.admin;
 import com.atlassian.confluence.security.PermissionManager;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
+import com.atlassian.confluence.user.UserAccessor;
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
 import com.atlassian.mcp.plugin.config.UrlSafety;
 import com.atlassian.mcp.plugin.tools.McpTool;
 import com.atlassian.mcp.plugin.tools.ToolRegistry;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.user.EntityException;
+import com.atlassian.user.Group;
+import com.atlassian.user.User;
+import com.atlassian.user.search.query.FullNameTermQuery;
+import com.atlassian.user.search.query.GroupNameTermQuery;
+import com.atlassian.user.search.query.Query;
+import com.atlassian.user.search.query.TermQuery;
+import com.atlassian.user.search.query.UserNameTermQuery;
 import jakarta.inject.Inject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.*;
@@ -20,19 +29,25 @@ import java.util.stream.Collectors;
 @Path("/")
 public class ConfigResource {
 
+    /** Max suggestions returned by the user/group typeahead pickers. */
+    private static final int PICKER_LIMIT = 10;
+
     private final McpPluginConfig config;
     private final ToolRegistry toolRegistry;
     private final PermissionManager permissionManager;
     private final ApplicationProperties applicationProperties;
+    private final UserAccessor userAccessor;
 
     @Inject
     public ConfigResource(McpPluginConfig config, ToolRegistry toolRegistry,
                           PermissionManager permissionManager,
-                          @ComponentImport ApplicationProperties applicationProperties) {
+                          @ComponentImport ApplicationProperties applicationProperties,
+                          @ComponentImport UserAccessor userAccessor) {
         this.config = config;
         this.toolRegistry = toolRegistry;
         this.permissionManager = permissionManager;
         this.applicationProperties = applicationProperties;
+        this.userAccessor = userAccessor;
     }
 
     @GET
@@ -133,6 +148,104 @@ public class ConfigResource {
         }
 
         return Response.noContent().build();
+    }
+
+    /**
+     * Typeahead for the admin "Allowed Users" picker. Searches by full name and by username via
+     * Confluence's native {@link UserAccessor} (atlassian-user query API) — no Cloud-only REST.
+     * Returns up to {@link #PICKER_LIMIT} {@code {value: username, label: full name}} entries.
+     */
+    @GET
+    @Path("/users")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response searchUsers(@QueryParam("q") String q) {
+        Response denied = requireAdmin();
+        if (denied != null) {
+            return denied;
+        }
+        String term = q == null ? "" : q.trim();
+        if (term.isEmpty()) {
+            return Response.ok(Collections.emptyList()).build();
+        }
+        // Full name and username are different term types, so atlassian-user forbids OR-ing them in
+        // a single boolean query (EntityQueryException). Run both and merge, deduping by username.
+        Map<String, Map<String, Object>> byName = new LinkedHashMap<>();
+        try {
+            collectUsers(byName, new FullNameTermQuery(term, TermQuery.SUBSTRING_CONTAINS));
+            if (byName.size() < PICKER_LIMIT) {
+                collectUsers(byName, new UserNameTermQuery(term, TermQuery.SUBSTRING_CONTAINS));
+            }
+        } catch (EntityException e) {
+            return Response.serverError()
+                    .entity(Map.of("error", "User search failed")).type(MediaType.APPLICATION_JSON).build();
+        }
+        return Response.ok(new ArrayList<>(byName.values())).build();
+    }
+
+    private void collectUsers(Map<String, Map<String, Object>> out, Query<User> query)
+            throws EntityException {
+        for (User u : userAccessor.findUsers(query).pager()) {
+            if (out.size() >= PICKER_LIMIT) {
+                break;
+            }
+            String name = u.getName();
+            if (name == null || out.containsKey(name)) {
+                continue;
+            }
+            String full = u.getFullName();
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("value", name);
+            item.put("label", (full != null && !full.isEmpty()) ? full : name);
+            out.put(name, item);
+        }
+    }
+
+    /**
+     * Typeahead for the admin "Allowed Groups" picker. Searches group names via the native
+     * {@link UserAccessor}. Returns up to {@link #PICKER_LIMIT} {@code {value, label}} entries.
+     */
+    @GET
+    @Path("/groups")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response searchGroups(@QueryParam("q") String q) {
+        Response denied = requireAdmin();
+        if (denied != null) {
+            return denied;
+        }
+        String term = q == null ? "" : q.trim();
+        if (term.isEmpty()) {
+            return Response.ok(Collections.emptyList()).build();
+        }
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            for (Group g : userAccessor.findGroups(
+                    new GroupNameTermQuery(term, TermQuery.SUBSTRING_CONTAINS)).pager()) {
+                if (results.size() >= PICKER_LIMIT) {
+                    break;
+                }
+                String name = g.getName();
+                if (name == null) {
+                    continue;
+                }
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("value", name);
+                item.put("label", name);
+                results.add(item);
+            }
+        } catch (EntityException e) {
+            return Response.serverError()
+                    .entity(Map.of("error", "Group search failed")).type(MediaType.APPLICATION_JSON).build();
+        }
+        return Response.ok(results).build();
+    }
+
+    /** FORBIDDEN response if the caller is not a Confluence administrator, else {@code null}. */
+    private Response requireAdmin() {
+        ConfluenceUser user = AuthenticatedUserThreadLocal.get();
+        if (user == null || !permissionManager.isConfluenceAdministrator(user)) {
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+        return null;
     }
 
     /**

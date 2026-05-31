@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5] - 2026-05-31
+
+### Fixed
+
+- **Admin user & group pickers now work on Data Center** — the "Allowed Users" typeahead called `/rest/api/search/user`, a **Cloud-only** endpoint that 404s on Data Center, so nothing ever appeared. Both pickers now hit new plugin endpoints `GET /rest/mcp-admin/1.0/users?q=` and `GET /rest/mcp-admin/1.0/groups?q=`, backed server-side by Confluence's native `UserAccessor` (atlassian-user query API: `FullNameTermQuery` + `UserNameTermQuery` for users, `GroupNameTermQuery` for groups, all `SUBSTRING_CONTAINS`). User search matches both full name and username (merged, deduped); results are admin-only and capped at 10.
+- **Admin picker dropdown was unreadable in light/dark theme** — the suggestion dropdown and tags hard-coded a dark-navy palette with no explicit text color, so in the light theme dark text rendered on a dark background. The picker, tag, and tool-list colors now use Atlassian Design System tokens (`--ds-surface-overlay`, `--ds-text`, `--ds-border`, `--ds-background-neutral`, …) with light-theme fallbacks, so they adapt to the active theme.
+
 ## [1.2.3] - 2026-05-31
 
 ### Security

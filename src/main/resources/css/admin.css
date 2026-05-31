@@ -1,6 +1,6 @@
 /* MCP Admin */
 #mcp-admin-form .field-group { margin-bottom: 16px; }
-#mcp-admin-form h3 { margin-top: 24px; border-bottom: 1px solid #344563; padding-bottom: 6px; }
+#mcp-admin-form h3 { margin-top: 24px; border-bottom: 1px solid var(--ds-border, #dfe1e6); padding-bottom: 6px; }
 
 /* Scale down AUI toggles */
 #mcp-admin-form aui-toggle {
@@ -8,20 +8,22 @@
     transform-origin: left center;
 }
 
-/* Tag picker — shared for users & groups */
+/* Tag picker — shared for users & groups.
+   Colors use Atlassian Design System tokens (--ds-*) so they adapt to the active
+   light/dark theme; the fallback after each comma is the light-theme value. */
 .mcp-tag {
     display: inline-block;
     margin: 2px 4px 2px 0;
     padding: 3px 8px;
-    background: #253858;
-    color: #b3bac5;
-    border: 1px solid #344563;
+    background: var(--ds-background-neutral, #f4f5f7);
+    color: var(--ds-text, #172b4d);
+    border: 1px solid var(--ds-border, #dfe1e6);
     border-radius: 3px;
     font-size: 13px;
 }
 .mcp-tag a {
     margin-left: 6px;
-    color: #ff5630;
+    color: var(--ds-text-danger, #de350b);
     text-decoration: none;
     font-weight: bold;
 }
@@ -30,9 +32,11 @@
 #mcp-user-suggestions, #mcp-group-suggestions {
     position: absolute;
     z-index: 100;
-    background: #1b2638;
-    border: 1px solid #344563;
+    background: var(--ds-surface-overlay, #ffffff);
+    color: var(--ds-text, #172b4d);
+    border: 1px solid var(--ds-border, #dfe1e6);
     border-radius: 3px;
+    box-shadow: var(--ds-shadow-overlay, 0 4px 8px -2px rgba(9, 30, 66, 0.25));
     max-height: 200px;
     overflow-y: auto;
     width: 400px;
@@ -40,14 +44,15 @@
 .mcp-suggestion {
     padding: 8px 12px;
     cursor: pointer;
+    color: var(--ds-text, #172b4d);
 }
 .mcp-suggestion:hover {
-    background: #253858;
+    background: var(--ds-background-neutral-hovered, #ebecf0);
 }
 
 /* Tool list — click to toggle */
 #mcp-tools-list {
-    border: 1px solid #dfe1e6;
+    border: 1px solid var(--ds-border, #dfe1e6);
     border-radius: 3px;
     max-height: 500px;
     overflow-y: auto;
@@ -55,13 +60,13 @@
 .mcp-tool-row {
     padding: 8px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #ebecf0;
+    border-bottom: 1px solid var(--ds-border, #ebecf0);
     display: flex;
     align-items: baseline;
     gap: 8px;
     transition: background 0.1s, opacity 0.1s;
 }
-.mcp-tool-row:hover { background: #ebecf0; }
+.mcp-tool-row:hover { background: var(--ds-background-neutral-subtle-hovered, #ebecf0); }
 .mcp-tool-row.mcp-tool-disabled {
     opacity: 0.45;
     text-decoration: line-through;
@@ -72,8 +77,8 @@
     flex-shrink: 0;
     text-align: center;
 }
-.mcp-tool-row:not(.mcp-tool-disabled) .mcp-tool-toggle { color: #00875a; }
-.mcp-tool-row.mcp-tool-disabled .mcp-tool-toggle { color: #de350b; }
+.mcp-tool-row:not(.mcp-tool-disabled) .mcp-tool-toggle { color: var(--ds-text-success, #00875a); }
+.mcp-tool-row.mcp-tool-disabled .mcp-tool-toggle { color: var(--ds-text-danger, #de350b); }
 .mcp-tool-label {
     font-family: monospace;
     font-weight: 500;
@@ -82,7 +87,7 @@
 }
 .mcp-tool-desc {
     font-size: 12px;
-    color: #6b778c;
+    color: var(--ds-text-subtlest, #6b778c);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

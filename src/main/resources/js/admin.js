@@ -67,7 +67,7 @@
                         $sug.append(
                             '<div class="mcp-suggestion" data-value="' + esc(r.value)
                             + '" data-label="' + esc(r.label) + '">'
-                            + esc(r.label) + (r.extra ? ' <span style="color:#6b778c;">(' + esc(r.extra) + ')</span>' : '')
+                            + esc(r.label) + (r.extra ? ' <span style="color:var(--ds-text-subtlest, #6b778c);">(' + esc(r.extra) + ')</span>' : '')
                             + '</div>'
                         );
                     });
@@ -119,11 +119,11 @@
             sugId: "mcp-group-suggestions",
             tagsId: "mcp-group-tags",
             removeClass: "mcp-remove-group",
-            searchUrl: "/rest/api/group?limit=8&start=0&prefix=",
+            searchUrl: "/rest/mcp-admin/1.0/groups?q=",
             items: function () { return allowedGroups; },
             extractResults: function (data) {
-                return (data.results || []).map(function (g) {
-                    return { value: g.name, label: g.name };
+                return (data || []).map(function (g) {
+                    return { value: g.value, label: g.label };
                 });
             }
         });
@@ -134,12 +134,11 @@
             sugId: "mcp-user-suggestions",
             tagsId: "mcp-user-tags",
             removeClass: "mcp-remove-user",
-            searchUrl: "/rest/api/search/user?cql=user.fullname~",
+            searchUrl: "/rest/mcp-admin/1.0/users?q=",
             items: function () { return allowedUsers; },
             extractResults: function (data) {
-                return (data.results || []).map(function (u) {
-                    var user = u.user || u;
-                    return { value: user.username || user.publicName, label: user.displayName || user.publicName, extra: user.username };
+                return (data || []).map(function (u) {
+                    return { value: u.value, label: u.label, extra: u.value };
                 });
             }
         });

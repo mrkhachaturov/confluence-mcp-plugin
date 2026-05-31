@@ -91,6 +91,9 @@ public class AccessControlFilter implements Filter {
     }
 
     private boolean isAccessAllowed(String username, String userKey) {
+        // Explicit opt-in: admin chose to allow every authenticated user. An empty allowlist
+        // alone no longer means "allow all" (see McpPluginConfig.isUserAllowed default-deny).
+        if (config.isAllowAllAuthenticatedUsers()) return true;
         if (userKey != null && config.isUserAllowed(userKey)) return true;
         if (username != null && config.isUserAllowed(username)) return true;
         Set<String> allowedGroups = config.getAllowedGroups();
@@ -113,10 +116,6 @@ public class AccessControlFilter implements Filter {
     }
 
     private static String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        return req.getRemoteAddr();
+        return ClientIp.resolve(req);
     }
 }

@@ -32,7 +32,7 @@ public class McpBootstrap {
     private static final Logger log = LoggerFactory.getLogger(McpBootstrap.class);
 
     private static final String SERVER_NAME = "confluence-mcp-plugin";
-    private static final String SERVER_VERSION = "1.2.0";
+    private static final String SERVER_VERSION = "1.2.3";
     private static final String SERVER_TITLE = "Confluence MCP Server";
     private static final String SERVER_DESCRIPTION =
             "Connect AI agents to Confluence Data Center — 28 tools across pages, comments, "
@@ -133,6 +133,13 @@ public class McpBootstrap {
                 .allowedOrigin("https://[::1]")
                 .allowedOrigin("https://[::1]:*");
 
+        // Host-header allowlist completes the DNS-rebinding defense (the SDK skips Host validation
+        // entirely when this list is empty). Pin to the deployment's own host plus loopback for
+        // local clients; a missing or mismatched Host now fails closed with 421.
+        builder.allowedHost("localhost").allowedHost("localhost:*")
+                .allowedHost("127.0.0.1").allowedHost("127.0.0.1:*")
+                .allowedHost("[::1]").allowedHost("[::1]:*");
+
         String baseUrl = resolveConfluenceBaseUrl();
         if (baseUrl != null && !baseUrl.isEmpty()) {
             String normalized = normalizeOrigin(baseUrl);
@@ -140,8 +147,22 @@ public class McpBootstrap {
                 builder.allowedOrigin(normalized);
                 builder.allowedOrigin(normalized + ":*");
             }
+            String host = hostOf(baseUrl);
+            if (host != null) {
+                builder.allowedHost(host);
+                builder.allowedHost(host + ":*");
+            }
         }
         return builder.build();
+    }
+
+    private static String hostOf(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return (host == null || host.isEmpty()) ? null : host;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String resolveConfluenceBaseUrl() {

@@ -6,7 +6,6 @@ import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +60,7 @@ public class GetPageImagesTool implements McpTool {
                 return "{\"message\":\"No attachments found\",\"images\":[]}";
             }
 
-            List<String> images = new ArrayList<>();
+            com.fasterxml.jackson.databind.node.ArrayNode images = mapper.createArrayNode();
             for (JsonNode att : results) {
                 String title = att.path("title").asText("");
                 String mediaType = att.path("metadata").path("mediaType").asText("");
@@ -82,21 +81,27 @@ public class GetPageImagesTool implements McpTool {
                 if (!isImage) continue;
 
                 String attId = att.path("id").asText();
+                com.fasterxml.jackson.databind.node.ObjectNode entry = mapper.createObjectNode();
+                entry.put("filename", title);
                 try {
                     byte[] data = client.getBytes("/rest/api/content/" + attId + "/download", authHeader);
                     if (data.length > MAX_BYTES) {
-                        images.add("{\"filename\":\"" + title + "\",\"error\":\"Exceeds 50 MB limit\"}");
-                        continue;
+                        entry.put("error", "Exceeds 50 MB limit");
+                    } else {
+                        entry.put("mediaType", mediaType);
+                        entry.put("size", data.length);
+                        entry.put("base64", Base64.getEncoder().encodeToString(data));
                     }
-                    String base64 = Base64.getEncoder().encodeToString(data);
-                    images.add("{\"filename\":\"" + title + "\",\"mediaType\":\"" + mediaType
-                            + "\",\"size\":" + data.length + ",\"base64\":\"" + base64 + "\"}");
                 } catch (Exception e) {
-                    images.add("{\"filename\":\"" + title + "\",\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}");
+                    entry.put("error", e.getMessage());
                 }
+                images.add(entry);
             }
 
-            return "{\"count\":" + images.size() + ",\"images\":[" + String.join(",", images) + "]}";
+            com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+            out.put("count", images.size());
+            out.set("images", images);
+            return mapper.writeValueAsString(out);
         } catch (Exception e) {
             throw new McpToolException("Failed to process images: " + e.getMessage());
         }

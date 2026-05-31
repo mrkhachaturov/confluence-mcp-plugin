@@ -97,8 +97,8 @@ The official **MCP Java SDK** now owns the protocol entirely — JSON-RPC framin
 ### Security
 
 - Body-size limit, rate limiting, access control, session binding, and security headers are discrete `<servlet-filter>` modules (see "Security is a filter chain" lesson below)
-- **Origin validation** (MUST per spec): handled by the SDK's `DefaultServerTransportSecurityValidator` inside the transport (not a filter). Invalid Origin → 403
-- **MCP-Protocol-Version** header validated by the SDK on non-initialize requests
+- **Origin + Host validation** (MUST per spec): handled by the SDK's `DefaultServerTransportSecurityValidator` inside the transport (not a filter). Configured in `McpBootstrap.buildSecurityValidator()` with both an Origin allowlist **and** a Host allowlist (the deployment FQDN + loopback) — the Host allowlist completes the DNS-rebinding defense, which the SDK skips when left empty. Invalid Origin → 403; missing/invalid Host → 421
+- **MCP-Protocol-Version** header validated by the plugin's `McpProtocolVersionFilter` (weight 560, before the transport): a present-but-unsupported value → 400. The MCP Java SDK transport does **not** validate this header, so the plugin enforces it. A missing header is tolerated (spec back-compat)
 
 ## Tools — 28 Total
 
@@ -281,9 +281,10 @@ Security is not inline in the transport — it is a chain of discrete `<servlet-
 | 400 | `AccessControlFilter` | Auth + user/group allowlist + read-only |
 | 500 | `SessionBindingFilter` | Bind MCP session to authenticated principal |
 | 550 | `SecurityHeadersFilter` | Response security headers |
+| 560 | `McpProtocolVersionFilter` | Reject unsupported `MCP-Protocol-Version` (400) |
 | 600 | `McpTransportFilter` | The SDK streamable transport |
 
-Origin validation is **not** a filter — it is performed by the SDK's `DefaultServerTransportSecurityValidator` inside the transport.
+Origin **and Host** validation are **not** filters — they are performed by the SDK's `DefaultServerTransportSecurityValidator` inside the transport (configured in `McpBootstrap` with both allowlists).
 
 ### REST package scan must be specific
 Use `<package>com.atlassian.mcp.plugin.rest</package>` — never the parent package.

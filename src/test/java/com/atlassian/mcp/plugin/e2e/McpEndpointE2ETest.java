@@ -740,6 +740,56 @@ public class McpEndpointE2ETest {
         }
     }
 
+    @Test
+    public void t79_unsupportedProtocolVersionReturns400() throws Exception {
+        // Authenticated request carrying a bogus MCP-Protocol-Version must be rejected by
+        // McpProtocolVersionFilter (weight 560) before the transport. The SDK does NOT validate
+        // this header, so a 400 here proves the plugin filter fired.
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+                .header("Authorization", "Bearer " + CONFLUENCE_PAT)
+                .header("Content-Type", "application/json")
+                .header("MCP-Protocol-Version", "1999-01-01")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals("unsupported MCP-Protocol-Version must be 400", 400, resp.statusCode());
+        assertTrue("body must identify the protocol-version filter, was: " + resp.body(),
+                resp.body().contains("Unsupported MCP-Protocol-Version"));
+    }
+
+    @Test
+    public void t80_dcrRejectsNonHttpsRedirectUri() throws Exception {
+        String badBody = "{\"client_name\":\"e2e-bad\",\"redirect_uris\":[\"http://attacker.example/cb\"]}";
+        HttpResponse<String> bad = postRegister(badBody);
+        Assume.assumeTrue("OAuth not configured on this instance — DCR returns 404",
+                bad.statusCode() != 404);
+
+        assertEquals("non-https/non-loopback redirect_uri must be rejected with 400, body=" + bad.body(),
+                400, bad.statusCode());
+        assertTrue("rejection must be invalid_redirect_uri, body=" + bad.body(),
+                bad.body().contains("invalid_redirect_uri"));
+
+        // Control: a valid https redirect_uri must still register successfully (201).
+        String goodBody = "{\"client_name\":\"e2e-good\",\"redirect_uris\":[\"https://good.example/cb\"]}";
+        HttpResponse<String> good = postRegister(goodBody);
+        assertEquals("valid https redirect_uri must register, body=" + good.body(),
+                201, good.statusCode());
+    }
+
+    private static HttpResponse<String> postRegister(String json) throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(CONFLUENCE_URL + "/plugins/servlet/mcp-oauth/register"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+        return HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+    }
+
     // =======================================================================
     // helpers
     // =======================================================================

@@ -37,9 +37,20 @@
             <!-- Access Control tab -->
             <div class="tabs-pane" id="mcp-tab-access">
                 <p class="description" style="margin-bottom:16px;">
-                    Define who can use MCP. If both lists are empty, all authenticated users have access.
-                    Users have higher priority than groups.
+                    Define who can use MCP. By default access is <strong>denied</strong> until you add
+                    at least one user or group (users override groups). To open the server to every
+                    authenticated Confluence user, enable the toggle below.
                 </p>
+                <div id="mcp-access-warning" class="aui-message aui-message-warning"
+                     style="display:none; margin-bottom:16px;"></div>
+                <div class="field-group">
+                    <label for="allowAllAuthenticatedUsers">Allow all authenticated users</label>
+                    <aui-toggle id="allowAllAuthenticatedUsers" label="Allow all authenticated users"></aui-toggle>
+                    <div class="description">
+                        When ON, the allowlist below is ignored and any logged-in Confluence user may
+                        use the MCP server. Leave OFF for least-privilege access.
+                    </div>
+                </div>
                 <div class="field-group">
                     <label for="mcp-group-input">Allowed Groups</label>
                     <div id="mcp-group-tags" style="margin-bottom:4px;"></div>

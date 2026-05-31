@@ -198,6 +198,24 @@ public class OAuthServlet extends HttpServlet {
         String clientName = (String) body.getOrDefault("client_name", "MCP Client");
         List<String> redirectUris = (List<String>) body.getOrDefault("redirect_uris", List.of());
 
+        // Validate redirect_uris with the SAME policy as CIMD (https for any host, or http only
+        // for exact loopback; reject embedded credentials). Without this, DCR stored arbitrary
+        // redirect_uris (e.g. http://attacker.example) — the leg an attacker uses for the
+        // one-click confused-deputy / token-redirect phishing path.
+        if (redirectUris.isEmpty()) {
+            resp.setStatus(400);
+            resp.getWriter().write("{\"error\":\"invalid_redirect_uri\",\"error_description\":\"redirect_uris is required\"}");
+            return;
+        }
+        for (String uri : redirectUris) {
+            if (!CimdValidator.isAllowedRedirectUri(uri)) {
+                resp.setStatus(400);
+                resp.getWriter().write("{\"error\":\"invalid_redirect_uri\",\"error_description\":"
+                        + "\"redirect_uris must be https:// or http://localhost|127.0.0.1 with no embedded credentials\"}");
+                return;
+            }
+        }
+
         OAuthStateStore.RegisteredClient client = stateStore.registerClient(clientName, redirectUris);
         if (client == null) {
             resp.setStatus(503);

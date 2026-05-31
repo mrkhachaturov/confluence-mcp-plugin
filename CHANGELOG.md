@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.3] - 2026-05-31
+
+### Security
+
+Hardening from the multi-agent deep security audit (`docs/SECURITY-AUDIT-2026-05.md`), audited against the MCP 2025-06-18 spec and MCP Java SDK. No CRITICAL findings; these close the HIGH/MEDIUM items. Verified by 26 new unit tests + 2 new e2e tests (36 e2e total, green) and live checks on the running instance.
+
+- **Admin config PUT is now CSRF-protected** — `ConfigResource.putConfig` rejects any request whose `Origin`/`Referer` host does not match this Confluence instance (403). Closes the cross-site control-plane takeover (the mutating REST endpoint previously had no XSRF protection). Non-browser admin automation with neither header is still allowed.
+- **`confluenceBaseUrl` override is SSRF-validated** — `UrlSafety` rejects non-http(s) schemes, embedded credentials, and loopback/link-local/cloud-metadata (`169.254.169.254`) targets at admin set-time (400), with a read-time fail-safe in `ConfluenceRestClient.getBaseUrl()`. Private (RFC1918) hosts remain allowed for legitimate internal Confluence. Closes the "repoint the plugin → exfiltrate every caller's bearer token" SSRF chain.
+- **Default-DENY access control** — an empty allowlist no longer silently grants every authenticated user. Access requires an explicit `allowedUsers`/`allowedGroups` entry, or the new opt-in **Allow all authenticated users** toggle (`allowAllAuthenticatedUsers`, default off). Admin UI shows the effective scope. **Migration:** existing installs relying on empty-list = allow-all must now add their users/groups or enable the toggle.
+- **Host-header validation completes the DNS-rebinding defense** — `McpBootstrap` now configures the SDK validator with a Host allowlist (deployment FQDN + loopback) in addition to Origin; a missing/forged Host fails closed (421). The SDK skips Host validation entirely when the list is empty.
+- **`MCP-Protocol-Version` is now enforced** — new `McpProtocolVersionFilter` (weight 560) returns 400 for a present-but-unsupported version, per spec. The MCP Java SDK does not validate this header. (The stale `CLAUDE.md` claim that the SDK validated it has been corrected.)
+- **Rate limiting hardened** — `X-Forwarded-For` is honoured only from a loopback peer (`ClientIp`), removing the trivial anonymous-bucket-spoofing bypass and audit-log poisoning. `RateLimiter` is now a per-key sliding window: no global counter wipe on the minute boundary, and lazy stale-eviction instead of rejecting all new keys when the map is full.
+- **Dynamic Client Registration validates `redirect_uris`** — `OAuthServlet.handleRegister` applies the same policy as CIMD (https for any host, or http only for exact loopback; no embedded credentials) → 400 `invalid_redirect_uri`. Closes the one-click phishing leg of the confused-deputy class (the silent zero-click variant is non-exploitable — Atlassian's OAuth provider re-prompts consent on every authorize).
+- **CQL injection fixed** — `CqlSafety` properly escapes CQL string literals (backslash then quote) in `search`/`search_user`, and `spaces_filter` tokens are validated (`[A-Za-z0-9_~.-]+`) so the space filter can no longer be escaped to inject CQL clauses.
+- **Download/image tool output built with Jackson** — `download_attachment`, `download_content_attachments`, `get_page_images` no longer hand-concatenate JSON, so attachment filenames/error messages can't corrupt or inject into the structured result.
+
+### Deferred (accepted residual risk — documented)
+
+- **Token audience binding** (`docs/token-binding-decision.md`) — the proxy still passes Confluence's token through. Risk is bounded by per-user ACL enforcement; a plugin-minted opaque token is a larger redesign tracked separately.
+- **Per-client OAuth consent page** — the silent confused-deputy bypass is empirically non-exploitable (see audit §3).
+
 ## [1.2.2] - 2026-05-31
 
 ### Security

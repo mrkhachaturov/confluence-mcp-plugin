@@ -66,7 +66,7 @@ public class OAuthAnonymousFilter implements Filter {
                     + "\"grant_types_supported\":[\"authorization_code\",\"refresh_token\"],"
                     + "\"token_endpoint_auth_methods_supported\":[\"none\"],"
                     + "\"code_challenge_methods_supported\":[\"S256\"],"
-                    + "\"scopes_supported\":[\"WRITE\",\"READ\"],"
+                    + "\"scopes_supported\":[\"WRITE\"],"
                     + "\"client_id_metadata_document_supported\":true}");
         } else if (uri.contains("openid-configuration")) {
             resp.getWriter().write("{\"issuer\":\"" + oauthBase + "\","
@@ -77,7 +77,7 @@ public class OAuthAnonymousFilter implements Filter {
                     + "\"grant_types_supported\":[\"authorization_code\",\"refresh_token\"],"
                     + "\"token_endpoint_auth_methods_supported\":[\"none\"],"
                     + "\"code_challenge_methods_supported\":[\"S256\"],"
-                    + "\"scopes_supported\":[\"WRITE\",\"READ\"],"
+                    + "\"scopes_supported\":[\"WRITE\"],"
                     + "\"client_id_metadata_document_supported\":true}");
         } else {
             resp.setStatus(404);

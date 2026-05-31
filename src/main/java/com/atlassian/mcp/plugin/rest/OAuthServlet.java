@@ -117,7 +117,10 @@ public class OAuthServlet extends HttpServlet {
             meta.put("grant_types_supported", List.of("authorization_code", "refresh_token"));
             meta.put("token_endpoint_auth_methods_supported", List.of("none"));
             meta.put("code_challenge_methods_supported", List.of("S256"));
-            meta.put("scopes_supported", List.of("WRITE", "READ"));
+            // Only WRITE is registered on the Confluence Application Link (it already grants read).
+            // Advertising READ as a separately requestable token makes clients request a scope
+            // Confluence rejects with invalid_scope.
+            meta.put("scopes_supported", List.of("WRITE"));
             meta.put("client_id_metadata_document_supported", true);
             mapper.writeValue(resp.getWriter(), meta);
 
@@ -138,7 +141,10 @@ public class OAuthServlet extends HttpServlet {
             meta.put("grant_types_supported", List.of("authorization_code", "refresh_token"));
             meta.put("token_endpoint_auth_methods_supported", List.of("none"));
             meta.put("code_challenge_methods_supported", List.of("S256"));
-            meta.put("scopes_supported", List.of("WRITE", "READ"));
+            // Only WRITE is registered on the Confluence Application Link (it already grants read).
+            // Advertising READ as a separately requestable token makes clients request a scope
+            // Confluence rejects with invalid_scope.
+            meta.put("scopes_supported", List.of("WRITE"));
             meta.put("client_id_metadata_document_supported", true);
             mapper.writeValue(resp.getWriter(), meta);
 

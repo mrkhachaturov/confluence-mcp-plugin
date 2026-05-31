@@ -63,7 +63,12 @@ public class AccessControlFilter implements Filter {
             log.warn("[MCP-SEC] unauthenticated request from {}", clientIp(httpReq));
             httpResp.setContentType("application/json");
             httpResp.setStatus(401);
-            String challenge = "Bearer realm=\"confluence-mcp\", scope=\"read write\"";
+            // Advertise the exact scope token the Confluence Application Link registers (WRITE,
+            // which already grants read). Confluence's OAuth provider strictly validates requested
+            // scope tokens against the client's registered set, so advertising "read write" makes
+            // clients request a "read" token that isn't registered -> invalid_scope. See the
+            // confluence-mcp OAuth scope lesson.
+            String challenge = "Bearer realm=\"confluence-mcp\", scope=\"WRITE\"";
             if (config.isOAuthEnabled()) {
                 String resourceMetadata = getConfluenceBaseUrl()
                         + "/plugins/servlet/mcp-oauth/protected-resource";

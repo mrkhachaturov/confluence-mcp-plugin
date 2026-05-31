@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.1] - 2026-05-31
+
+### Fixed
+
+- **OAuth `invalid_scope` on connect** — the spec-compliant 401 work (1.2.0) made `AccessControlFilter`'s `WWW-Authenticate` challenge reachable by anonymous clients, where it advertised `scope="read write"`. MCP clients then requested `read write` at `/authorize`, which Confluence's OAuth provider rejected because the Application Link registers a single `WRITE` scope (which already grants read). Confluence strictly validates each requested scope *token* against the client's registered set, so the unregistered `read` token failed with `invalid_scope`. Now every discovery path advertises only `WRITE`: the `WWW-Authenticate` challenge (`AccessControlFilter`), and `scopes_supported` in `OAuthServlet` (both metadata documents) and `OAuthAnonymousFilter` (both well-known branches). The `handleAuthorize` forward is unchanged — the root cause was the advertised scope, not the forward
+- **OAuth scope test coverage** — the consent leg had none (functional tests use a PAT; `t70`/`t71` only checked a `WWW-Authenticate` header was present, not its value). `t70`/`t71` now assert the challenge advertises `scope="WRITE"` and not `read`; new `t78` asserts every OAuth/OIDC discovery document advertises exactly `["WRITE"]` (fails against pre-1.2.1 code)
+
+### Changed
+
+- Version bump to 1.2.1 (also busts the CDN cache for web resources)
+
 ## [1.2.0] - 2026-05-31
 
 ### Added

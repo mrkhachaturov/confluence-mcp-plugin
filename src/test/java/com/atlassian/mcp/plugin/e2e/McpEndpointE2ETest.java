@@ -547,8 +547,16 @@ public class McpEndpointE2ETest {
 
         assertEquals("unauthenticated POST must be 401, not a 302 login redirect",
                 401, resp.statusCode());
-        assertTrue("401 must carry WWW-Authenticate",
-                resp.headers().firstValue("WWW-Authenticate").isPresent());
+        String wwwAuth = resp.headers().firstValue("WWW-Authenticate").orElse("");
+        assertFalse("401 must carry WWW-Authenticate", wwwAuth.isEmpty());
+        // The advertised scope must be exactly the token registered on the Confluence Application
+        // Link (WRITE, which already grants read). Advertising "read write" makes clients request
+        // a "read" token Confluence rejects with invalid_scope — the bug this guards against.
+        assertTrue("WWW-Authenticate must advertise scope=\"WRITE\", was: " + wwwAuth,
+                wwwAuth.contains("scope=\"WRITE\""));
+        assertFalse("WWW-Authenticate must not advertise the unregistered 'read' scope, was: "
+                        + wwwAuth,
+                wwwAuth.toLowerCase().contains("read"));
         assertFalse("must not be a login redirect HTML page",
                 resp.body().toLowerCase().contains("<html"));
     }
@@ -567,8 +575,13 @@ public class McpEndpointE2ETest {
 
         assertEquals("invalid-PAT POST must be 401, not a 302 login redirect",
                 401, resp.statusCode());
-        assertTrue("401 must carry WWW-Authenticate",
-                resp.headers().firstValue("WWW-Authenticate").isPresent());
+        String wwwAuth = resp.headers().firstValue("WWW-Authenticate").orElse("");
+        assertFalse("401 must carry WWW-Authenticate", wwwAuth.isEmpty());
+        assertTrue("WWW-Authenticate must advertise scope=\"WRITE\", was: " + wwwAuth,
+                wwwAuth.contains("scope=\"WRITE\""));
+        assertFalse("WWW-Authenticate must not advertise the unregistered 'read' scope, was: "
+                        + wwwAuth,
+                wwwAuth.toLowerCase().contains("read"));
         assertFalse("must not be a login redirect HTML page",
                 resp.body().toLowerCase().contains("<html"));
     }
@@ -691,6 +704,39 @@ public class McpEndpointE2ETest {
             assertTrue(path + " must advertise issuer", json.has("issuer"));
             assertFalse(path + " issuer must not be empty",
                     json.path("issuer").asText().isEmpty());
+        }
+    }
+
+    /**
+     * Every OAuth/OIDC discovery document must advertise exactly the scope token(s) registered on
+     * the Confluence Application Link — only {@code WRITE} (which already grants read). Advertising
+     * {@code READ} as a separately requestable scope makes MCP clients request a token Confluence's
+     * OAuth provider rejects with {@code invalid_scope}. This is the regression guard for the bug
+     * where the consent flow failed because the plugin advertised {@code ["WRITE","READ"]} /
+     * {@code scope="read write"} against a WRITE-only Application Link.
+     */
+    @Test
+    public void t78_discoveryAdvertisesOnlyRegisteredWriteScope() throws Exception {
+        for (String path : List.of(
+                "/plugins/servlet/mcp-oauth/metadata",
+                "/.well-known/oauth-authorization-server",
+                "/.well-known/openid-configuration",
+                "/plugins/servlet/mcp-oauth/openid-configuration")) {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(CONFLUENCE_URL + path))
+                    .timeout(REQUEST_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            assertEquals(path + " must return 200", 200, resp.statusCode());
+
+            JsonNode scopes = MAPPER.readTree(resp.body()).path("scopes_supported");
+            assertTrue(path + " must advertise scopes_supported, body=" + resp.body(),
+                    scopes.isArray());
+            assertEquals(path + " must advertise exactly one scope, was: " + scopes,
+                    1, scopes.size());
+            assertEquals(path + " must advertise only the registered WRITE scope, was: " + scopes,
+                    "WRITE", scopes.get(0).asText());
         }
     }
 

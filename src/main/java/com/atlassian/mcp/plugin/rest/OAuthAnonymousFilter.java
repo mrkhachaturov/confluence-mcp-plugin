@@ -63,10 +63,11 @@ public class OAuthAnonymousFilter implements Filter {
                     + "\"token_endpoint\":\"" + oauthBase + "/token\","
                     + "\"registration_endpoint\":\"" + oauthBase + "/register\","
                     + "\"response_types_supported\":[\"code\"],"
-                    + "\"grant_types_supported\":[\"authorization_code\"],"
+                    + "\"grant_types_supported\":[\"authorization_code\",\"refresh_token\"],"
                     + "\"token_endpoint_auth_methods_supported\":[\"none\"],"
                     + "\"code_challenge_methods_supported\":[\"S256\"],"
-                    + "\"scopes_supported\":[\"WRITE\",\"READ\"]}");
+                    + "\"scopes_supported\":[\"WRITE\",\"READ\"],"
+                    + "\"client_id_metadata_document_supported\":true}");
         } else if (uri.contains("openid-configuration")) {
             resp.getWriter().write("{\"issuer\":\"" + oauthBase + "\","
                     + "\"authorization_endpoint\":\"" + oauthBase + "/authorize\","

@@ -38,7 +38,8 @@ public final class McpToolAdapter {
     }
 
     /** Build a {@link McpServerFeatures.SyncToolSpecification} from an internal {@link McpTool}. */
-    public static McpServerFeatures.SyncToolSpecification adapt(McpTool tool) {
+    public static McpServerFeatures.SyncToolSpecification adapt(
+            McpTool tool, com.atlassian.mcp.plugin.config.McpPluginConfig config) {
         McpSchema.ToolAnnotations annotations = McpSchema.ToolAnnotations.builder()
                 .title(tool.title())
                 .readOnlyHint(!tool.isWriteTool())
@@ -57,13 +58,33 @@ public final class McpToolAdapter {
 
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(schemaTool)
-                .callHandler((exchange, request) -> dispatch(tool, exchange, request))
+                .callHandler((exchange, request) -> dispatch(tool, config, exchange, request))
                 .build();
     }
 
     private static McpSchema.CallToolResult dispatch(McpTool tool,
+                                                     com.atlassian.mcp.plugin.config.McpPluginConfig config,
                                                      McpSyncServerExchange exchange,
                                                      McpSchema.CallToolRequest request) {
+        // Call-time guard: the SDK sync server's tool list is frozen at filter init
+        // (McpBootstrap.buildTransport -> ToolRegistry.toSpecifications). Re-check admin
+        // config here so runtime toggles of readOnlyMode / disabledTools (via the admin page
+        // or ConfigResource) block write/disabled tools immediately, without a plugin reload —
+        // restoring the per-request enforcement the old McpResource provided.
+        if (!config.isToolEnabled(tool.name())) {
+            return McpSchema.CallToolResult.builder()
+                    .addTextContent("Error: tool '" + tool.name() + "' is disabled by the administrator")
+                    .isError(Boolean.TRUE)
+                    .build();
+        }
+        if (config.isReadOnlyMode() && tool.isWriteTool()) {
+            return McpSchema.CallToolResult.builder()
+                    .addTextContent("Error: server is in read-only mode; write tool '" + tool.name()
+                            + "' is not available")
+                    .isError(Boolean.TRUE)
+                    .build();
+        }
+
         String authHeader = readContext(exchange, ConfluenceAuthContextExtractor.CTX_AUTH_HEADER);
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
         Object progressToken = extractProgressToken(request);

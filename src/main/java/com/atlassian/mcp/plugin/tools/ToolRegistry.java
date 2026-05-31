@@ -108,7 +108,7 @@ public class ToolRegistry {
                 .filter(this::isCapabilityMet)
                 .filter(t -> config.isToolEnabled(t.name()))
                 .filter(t -> !config.isReadOnlyMode() || !t.isWriteTool())
-                .map(McpToolAdapter::adapt)
+                .map(t -> McpToolAdapter.adapt(t, config))
                 .collect(Collectors.toList());
     }
 

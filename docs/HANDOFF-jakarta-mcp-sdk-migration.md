@@ -65,7 +65,25 @@ auto-loaded by mise from `.mise.toml`.
 
 ---
 
-## NEXT — the remaining roadmap
+## DONE — SDK migration complete
+
+The MCP Java SDK migration (Steps 0–6 below) is **complete and verified live** (e2e 33/33 green).
+The MCP endpoint moved from JAX-RS `POST /rest/mcp/1.0/` to the SDK streamable transport
+mounted as async `<servlet-filter>` modules at `POST /plugins/servlet/mcp`; `JsonRpcHandler`
+and `McpResource` are deleted; tools are adapted via `McpToolAdapter` /
+`ToolRegistry.toSpecifications()`; security is a six-filter chain (`before-dispatch`,
+all `@UnrestrictedAccess`); OAuth gained OIDC discovery + CIMD.
+
+The authoritative records are the design spec and implementation plan:
+
+- Plan: `docs/rkstack/plans/2026-05-30-mcp-sdk-migration.md`
+- Spec: `docs/rkstack/specs/2026-05-30-mcp-sdk-migration-design.md`
+
+**The spec supersedes the SDK-migration portion of this HANDOFF** (the roadmap below is kept
+for historical context only). User-facing docs (`CLAUDE.md`, `README.md`, admin UI) are
+updated to match.
+
+## NEXT — the remaining roadmap (historical)
 
 Follow the same disciplined order the Jira plugin used: **docs first (design spec →
 dual-review → implementation plan), then incremental code commits.** Do NOT flip everything

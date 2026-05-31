@@ -182,7 +182,7 @@
                 $("#oauth-status").html('<span class="aui-lozenge aui-lozenge-success">Active</span>');
             }
             var baseUrl = window.location.origin + AJS.contextPath();
-            var mcpUrl = baseUrl + "/rest/mcp/1.0/";
+            var mcpUrl = baseUrl + "/plugins/servlet/mcp";
             $("#oauth-callback-url").text(baseUrl + "/plugins/servlet/mcp-oauth/callback");
             $("#oauth-mcp-config").text(JSON.stringify({
                 "mcpServers": {

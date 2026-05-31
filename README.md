@@ -29,7 +29,7 @@
 
 ```mermaid
 graph TD
-    AI["🤖 AI Agent<br/>Claude Code / Cursor"] -->|"POST /rest/mcp/1.0/"| MCP["🔌 MCP Endpoint<br/>Streamable HTTP"]
+    AI["🤖 AI Agent<br/>Claude Code / Cursor"] -->|"POST /plugins/servlet/mcp"| MCP["🔌 MCP Endpoint<br/>Streamable HTTP"]
     AI -->|"OAuth 2.0"| OAUTH["🔐 OAuth Proxy<br/>/plugins/servlet/mcp-oauth/*"]
 
     MCP --> TR["🛠️ Tool Registry<br/>23 tools"]
@@ -68,7 +68,7 @@ graph TD
   "mcpServers": {
     "confluence": {
       "type": "http",
-      "url": "https://your-confluence.example.com/rest/mcp/1.0/"
+      "url": "https://your-confluence.example.com/plugins/servlet/mcp"
     }
   }
 }
@@ -98,7 +98,7 @@ On first connection, click Authenticate, consent on the Confluence page, and you
 
 ## 📡 Transport
 
-The plugin implements MCP Streamable HTTP on a single endpoint. The server decides the response format per request.
+The plugin serves MCP Streamable HTTP on a single endpoint (`/plugins/servlet/mcp`), powered by the official [MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk). The SDK owns JSON-RPC framing, session ids, SSE streaming, and `Accept` negotiation; the plugin supplies the tool specifications. The server decides the response format per request.
 
 ```mermaid
 graph LR
@@ -162,6 +162,8 @@ Comments (`add_comment`, `reply_to_comment`) also accept Markdown and convert au
 ### OAuth 2.0 (recommended) 🌐
 
 The plugin proxies between MCP clients and Confluence's built-in OAuth provider. Users click Authenticate, consent in the browser, and the token exchange happens automatically. Refresh tokens are passed through from Confluence, so sessions renew seamlessly without re-authentication.
+
+The OAuth proxy advertises **OIDC discovery** (`/.well-known/openid-configuration` and `/plugins/servlet/mcp-oauth/openid-configuration`) and supports **CIMD** (Client ID Metadata Documents) for clients that present a metadata-document client id, with SSRF guards and a bounded cache.
 
 ```mermaid
 graph LR

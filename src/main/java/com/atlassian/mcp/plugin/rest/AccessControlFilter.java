@@ -1,5 +1,6 @@
 package com.atlassian.mcp.plugin.rest;
 
+import com.atlassian.annotations.security.UnrestrictedAccess;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
 import com.atlassian.confluence.user.UserAccessor;
@@ -25,6 +26,7 @@ import org.slf4j.LoggerFactory;
  * {@code isAccessAllowed}): 503 if disabled; 401 + WWW-Authenticate JSON if no user; 403 if
  * the user is not allowed. Never a Confluence login redirect (spec §4.1).
  */
+@UnrestrictedAccess
 @Named("mcpAccessControlFilter")
 public class AccessControlFilter implements Filter {
 

@@ -1,5 +1,6 @@
 package com.atlassian.mcp.plugin.rest;
 
+import com.atlassian.annotations.security.UnrestrictedAccess;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
  * non-initialize POSTs return 401. Captures the session id from the {@code initialize}
  * response and binds it to the authenticated user; DELETE removes the binding on success.
  */
+@UnrestrictedAccess
 @Named("mcpSessionBindingFilter")
 public class SessionBindingFilter implements Filter {
 

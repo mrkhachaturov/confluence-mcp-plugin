@@ -1,5 +1,6 @@
 package com.atlassian.mcp.plugin.rest;
 
+import com.atlassian.annotations.security.UnrestrictedAccess;
 import jakarta.inject.Named;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
  * remains, the request is rejected with 413. The already-read bytes are re-wrapped so the
  * SDK transport downstream reads the body intact.
  */
+@UnrestrictedAccess
 @Named("mcpBodySizeLimitFilter")
 public class BodySizeLimitFilter implements Filter {
 

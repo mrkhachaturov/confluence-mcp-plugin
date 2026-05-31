@@ -1,5 +1,6 @@
 package com.atlassian.mcp.plugin.rest;
 
+import com.atlassian.annotations.security.UnrestrictedAccess;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.servlet.Filter;
@@ -25,6 +26,7 @@ import org.slf4j.LoggerFactory;
  * {@code /plugins/servlet/mcp}, calls the SDK transport servlet's {@code service(...)}
  * directly, and never invokes {@code chain.doFilter()} — it IS the endpoint.
  */
+@UnrestrictedAccess
 @Named("mcpTransportFilter")
 public class McpTransportFilter implements Filter {
 

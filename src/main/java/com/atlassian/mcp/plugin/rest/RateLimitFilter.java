@@ -1,5 +1,6 @@
 package com.atlassian.mcp.plugin.rest;
 
+import com.atlassian.annotations.security.UnrestrictedAccess;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
 import jakarta.inject.Inject;
@@ -22,6 +23,7 @@ import org.slf4j.LoggerFactory;
  * bucket rather than a shared null key (spec §6.3). Over-limit returns 429 with
  * {@code RateLimit-*} + {@code Retry-After} headers.
  */
+@UnrestrictedAccess
 @Named("mcpRateLimitFilter")
 public class RateLimitFilter implements Filter {
 

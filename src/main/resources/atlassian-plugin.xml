@@ -84,6 +84,12 @@
         <url-pattern>/plugins/servlet/mcp</url-pattern>
         <dispatcher>REQUEST</dispatcher>
     </servlet-filter>
+    <servlet-filter key="mcp-protocol-version-filter" name="MCP Protocol Version"
+                    class="com.atlassian.mcp.plugin.rest.McpProtocolVersionFilter"
+                    location="before-dispatch" weight="560">
+        <url-pattern>/plugins/servlet/mcp</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </servlet-filter>
     <servlet-filter key="mcp-transport-filter" name="MCP Transport"
                     class="com.atlassian.mcp.plugin.rest.McpTransportFilter"
                     location="before-dispatch" weight="600">

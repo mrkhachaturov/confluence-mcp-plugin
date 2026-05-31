@@ -18,6 +18,8 @@ import java.util.UUID;
 @Named
 public class ConfluenceRestClient {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ConfluenceRestClient.class);
+
     private final ApplicationProperties applicationProperties;
     private final com.atlassian.mcp.plugin.config.McpPluginConfig pluginConfig;
     private final HttpClient httpClient;
@@ -143,7 +145,14 @@ public class ConfluenceRestClient {
     public String getBaseUrl() {
         String override = pluginConfig.getConfluenceBaseUrlOverride();
         if (override != null && !override.isBlank()) {
-            return override.replaceAll("/+$", "");
+            // Read-time SSRF fail-safe: ignore an override that isn't a syntactically safe
+            // http(s) URL (e.g. a value stored before set-time validation existed, or pointing
+            // at loopback/metadata). The caller's Authorization header rides on this base URL,
+            // so a bad override must never be honoured.
+            if (com.atlassian.mcp.plugin.config.UrlSafety.isSyntacticallySafeBaseUrl(override)) {
+                return override.replaceAll("/+$", "");
+            }
+            log.warn("[MCP-SEC] ignoring unsafe confluenceBaseUrl override; using platform base URL");
         }
         return applicationProperties.getBaseUrl().replaceAll("/+$", "");
     }

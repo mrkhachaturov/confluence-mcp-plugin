@@ -4,6 +4,7 @@ import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.StorageToMarkdown;
+import com.atlassian.mcp.plugin.tools.CqlSafety;
 import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,20 +63,11 @@ public class SearchTool implements McpTool {
         boolean isSimpleQuery = !searchQuery.contains("=") && !searchQuery.contains("~");
         String cql = searchQuery;
         if (isSimpleQuery) {
-            cql = "siteSearch ~ \"" + searchQuery.replace("\"", "\\\"") + "\"";
+            cql = "siteSearch ~ \"" + CqlSafety.quote(searchQuery) + "\"";
         }
 
-        // Append space filter if provided
-        if (spacesFilter != null && !spacesFilter.isBlank()) {
-            String[] spaces = spacesFilter.split(",");
-            StringBuilder spaceClause = new StringBuilder("space in (");
-            for (int i = 0; i < spaces.length; i++) {
-                if (i > 0) spaceClause.append(",");
-                spaceClause.append("\"").append(spaces[i].trim()).append("\"");
-            }
-            spaceClause.append(")");
-            cql = "(" + cql + ") AND " + spaceClause;
-        }
+        // Append space filter if provided (validated to prevent CQL clause injection)
+        cql = applySpaceFilter(cql, spacesFilter);
 
         // Upstream fallback: siteSearch → text search on error
         String rawJson;
@@ -86,17 +78,8 @@ public class SearchTool implements McpTool {
         } catch (McpToolException e) {
             if (isSimpleQuery) {
                 // Fallback to text search (mirrors upstream siteSearch fallback)
-                cql = "text ~ \"" + searchQuery.replace("\"", "\\\"") + "\"";
-                if (spacesFilter != null && !spacesFilter.isBlank()) {
-                    String[] spaces = spacesFilter.split(",");
-                    StringBuilder spaceClause = new StringBuilder("space in (");
-                    for (int i = 0; i < spaces.length; i++) {
-                        if (i > 0) spaceClause.append(",");
-                        spaceClause.append("\"").append(spaces[i].trim()).append("\"");
-                    }
-                    spaceClause.append(")");
-                    cql = "(" + cql + ") AND " + spaceClause;
-                }
+                cql = "text ~ \"" + CqlSafety.quote(searchQuery) + "\"";
+                cql = applySpaceFilter(cql, spacesFilter);
                 rawJson = client.getRaw("/rest/api/search?cql=" + encode(cql)
                         + "&limit=" + limit
                         + "&expand=content.space,content.version,content.body.storage", authHeader);
@@ -138,6 +121,39 @@ public class SearchTool implements McpTool {
         } catch (Exception e) {
             throw new McpToolException("Failed to transform search results: " + e.getMessage());
         }
+    }
+
+    /**
+     * Appends a validated {@code space in ("A","B")} clause. Each token must be a valid space key
+     * (see {@link CqlSafety#isValidSpaceToken}); an invalid token is rejected rather than
+     * interpolated, preventing CQL clause injection through {@code spaces_filter}.
+     */
+    private static String applySpaceFilter(String cql, String spacesFilter) throws McpToolException {
+        if (spacesFilter == null || spacesFilter.isBlank()) {
+            return cql;
+        }
+        String[] spaces = spacesFilter.split(",");
+        StringBuilder spaceClause = new StringBuilder("space in (");
+        boolean first = true;
+        for (String raw : spaces) {
+            String token = raw.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            if (!CqlSafety.isValidSpaceToken(token)) {
+                throw new McpToolException("Invalid space key in spaces_filter: '" + token + "'");
+            }
+            if (!first) {
+                spaceClause.append(",");
+            }
+            spaceClause.append("\"").append(token).append("\"");
+            first = false;
+        }
+        if (first) {
+            return cql; // no usable tokens
+        }
+        spaceClause.append(")");
+        return "(" + cql + ") AND " + spaceClause;
     }
 
     private static String encode(String s) {

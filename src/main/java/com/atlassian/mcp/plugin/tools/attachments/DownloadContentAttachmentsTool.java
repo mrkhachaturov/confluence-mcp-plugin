@@ -6,7 +6,6 @@ import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -56,26 +55,31 @@ public class DownloadContentAttachmentsTool implements McpTool {
                 return "{\"message\":\"No attachments found\",\"attachments\":[]}";
             }
 
-            List<String> entries = new ArrayList<>();
+            com.fasterxml.jackson.databind.node.ArrayNode attachments = mapper.createArrayNode();
             for (JsonNode att : results) {
                 String attId = att.path("id").asText();
                 String title = att.path("title").asText("unknown");
+                com.fasterxml.jackson.databind.node.ObjectNode entry = mapper.createObjectNode();
+                entry.put("filename", title);
                 try {
                     String downloadPath = "/rest/api/content/" + attId + "/download";
                     byte[] data = client.getBytes(downloadPath, authHeader);
                     if (data.length > MAX_BYTES) {
-                        entries.add("{\"filename\":\"" + title + "\",\"error\":\"Exceeds 50 MB limit\"}");
-                        continue;
+                        entry.put("error", "Exceeds 50 MB limit");
+                    } else {
+                        entry.put("size", data.length);
+                        entry.put("base64", Base64.getEncoder().encodeToString(data));
                     }
-                    String base64 = Base64.getEncoder().encodeToString(data);
-                    entries.add("{\"filename\":\"" + title + "\",\"size\":" + data.length
-                            + ",\"base64\":\"" + base64 + "\"}");
                 } catch (Exception e) {
-                    entries.add("{\"filename\":\"" + title + "\",\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}");
+                    entry.put("error", e.getMessage());
                 }
+                attachments.add(entry);
             }
 
-            return "{\"count\":" + entries.size() + ",\"attachments\":[" + String.join(",", entries) + "]}";
+            com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+            out.put("count", attachments.size());
+            out.set("attachments", attachments);
+            return mapper.writeValueAsString(out);
         } catch (Exception e) {
             throw new McpToolException("Failed to process attachments: " + e.getMessage());
         }

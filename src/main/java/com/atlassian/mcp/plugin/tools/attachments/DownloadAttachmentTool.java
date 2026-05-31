@@ -62,8 +62,11 @@ public class DownloadAttachmentTool implements McpTool {
             }
 
             String base64 = Base64.getEncoder().encodeToString(data);
-            return "{\"filename\":\"" + title + "\",\"size\":" + data.length
-                    + ",\"base64\":\"" + base64 + "\"}";
+            com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+            out.put("filename", title);
+            out.put("size", data.length);
+            out.put("base64", base64);
+            return mapper.writeValueAsString(out);
         } catch (McpToolException e) {
             throw e;
         } catch (Exception e) {

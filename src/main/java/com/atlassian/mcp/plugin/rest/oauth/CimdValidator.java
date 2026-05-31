@@ -240,8 +240,9 @@ public final class CimdValidator {
      * Allowed redirect URIs: https for any host, OR http ONLY for the exact loopback hosts
      * (localhost / 127.0.0.1 / [::1]). Host-exact-matched so http://localhost.evil.example is rejected.
      */
-    // Package-private (not private) so CimdValidatorTest can assert host-exact matching directly.
-    static boolean isAllowedRedirectUri(String uri) {
+    // Public so OAuthServlet's Dynamic Client Registration path reuses the same redirect_uri
+    // policy as CIMD (https for any host, or http only for exact loopback; no embedded creds).
+    public static boolean isAllowedRedirectUri(String uri) {
         if (uri == null || uri.isEmpty()) return false;
         URI u;
         try {

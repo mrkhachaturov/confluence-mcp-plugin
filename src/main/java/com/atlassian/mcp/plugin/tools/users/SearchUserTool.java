@@ -3,6 +3,7 @@ package com.atlassian.mcp.plugin.tools.users;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.ResponseTransformer;
+import com.atlassian.mcp.plugin.tools.CqlSafety;
 import com.atlassian.mcp.plugin.tools.McpTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,7 +57,7 @@ public class SearchUserTool implements McpTool {
         int limit = Math.min(getInt(args, "limit", 10), 50);
 
         // Use CQL search — works with both PAT and OAuth (3LO)
-        String cql = "type=user AND user.fullname~\"" + searchQuery.replace("\"", "\\\"") + "\"";
+        String cql = "type=user AND user.fullname~\"" + CqlSafety.quote(searchQuery) + "\"";
         String rawJson = client.getRaw("/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, authHeader);
 
         // Transform to upstream format: flat list of simplified user dicts

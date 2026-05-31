@@ -49,11 +49,23 @@ public class McpPluginConfig {
     }
 
     public boolean isUserAllowed(String userKey) {
-        Set<String> allowed = getAllowedUserKeys();
-        if (allowed.isEmpty() && getAllowedGroups().isEmpty()) {
-            return true; // no restrictions configured — allow all
-        }
-        return allowed.contains(userKey);
+        // Default-DENY: an empty allowlist no longer grants everyone. Blanket access for all
+        // authenticated users is now an explicit, opt-in choice (allowAllAuthenticatedUsers),
+        // checked by AccessControlFilter — not an accidental side effect of a blank config.
+        return getAllowedUserKeys().contains(userKey);
+    }
+
+    /**
+     * When true, ANY authenticated Confluence user may use the MCP server (the allowlist is
+     * ignored). Defaults to false — admins must consciously opt into open access. This replaces
+     * the old footgun where a blank allowedUsers + allowedGroups silently meant "allow all".
+     */
+    public boolean isAllowAllAuthenticatedUsers() {
+        return Boolean.parseBoolean((String) settings().get(PREFIX + "allowAllAuthenticatedUsers"));
+    }
+
+    public void setAllowAllAuthenticatedUsers(boolean allowAll) {
+        settings().put(PREFIX + "allowAllAuthenticatedUsers", String.valueOf(allowAll));
     }
 
     public Set<String> getAllowedGroups() {

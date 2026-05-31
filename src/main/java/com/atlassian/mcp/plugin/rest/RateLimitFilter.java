@@ -76,10 +76,6 @@ public class RateLimitFilter implements Filter {
     }
 
     private static String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        return req.getRemoteAddr();
+        return ClientIp.resolve(req);
     }
 }

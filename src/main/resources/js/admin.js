@@ -96,6 +96,20 @@
 
     function esc(s) { return s ? $("<span>").text(s).html() : ""; }
 
+    function updateAccessWarning() {
+        var $w = $("#mcp-access-warning");
+        if (!$w.length) return;
+        var allowAll = document.getElementById("allowAllAuthenticatedUsers");
+        if (allowAll && allowAll.checked) {
+            $w.html("⚠ Open access: ALL authenticated Confluence users can use the MCP server.").show();
+        } else if (allowedUsers.length === 0 && allowedGroups.length === 0) {
+            $w.html("No users or groups are allowed yet — the MCP server will deny everyone. "
+                + "Add a user/group above, or enable “allow all authenticated users”.").show();
+        } else {
+            $w.hide();
+        }
+    }
+
     // ==================== INIT ====================
 
     $(function () {
@@ -134,6 +148,7 @@
         $.ajax({ url: url, dataType: "json", headers: headers }).done(function (config) {
             if (config.enabled) document.getElementById("enabled").checked = true;
             if (config.readOnlyMode) document.getElementById("readOnlyMode").checked = true;
+            if (config.allowAllAuthenticatedUsers) document.getElementById("allowAllAuthenticatedUsers").checked = true;
             $("#confluenceBaseUrl").val(config.confluenceBaseUrl || "");
 
             allToolsMeta = config.allTools || [];
@@ -193,6 +208,13 @@
             $("#mcp-tools-list").html('<div style="padding:12px; color:#de350b;">Failed to load config (HTTP ' + xhr.status + ').</div>');
         });
 
+        // Access-scope warning reflects the allowlist + open-access toggle
+        $("#allowAllAuthenticatedUsers").on("change", updateAccessWarning);
+        $(document).on("click", ".mcp-remove-user, .mcp-remove-group, .mcp-suggestion", function () {
+            setTimeout(updateAccessWarning, 0);
+        });
+        setTimeout(updateAccessWarning, 0);
+
         // Tool filter & toggle
         $("#mcp-tool-filter").on("input", renderTools);
         $(document).on("click", ".mcp-tool-row", function () {
@@ -212,6 +234,7 @@
                     allowedUsers: allowedUsers.map(function (u) { return u.value; }).join(","),
                     disabledTools: Array.from(disabledSet).sort().join(","),
                     readOnlyMode: document.getElementById("readOnlyMode").checked,
+                    allowAllAuthenticatedUsers: document.getElementById("allowAllAuthenticatedUsers").checked,
                     confluenceBaseUrl: $("#confluenceBaseUrl").val(),
                     oauthClientId: $("#oauthClientId").val(),
                     oauthClientSecret: $("#oauthClientSecret").val()

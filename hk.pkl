@@ -42,6 +42,11 @@ hooks {
         glob = List("**/*.java")
         check = "flint run checkstyle"
       }
+      ["css"] = new Step {
+        glob = List("**/*.css")
+        check = "biome check src/main/resources/css"
+        fix = "biome check --write src/main/resources/css"
+      }
       ["new-issues"] = new Step {
         check = "flint run --new-from-rev origin/main"
         exclusive = true
@@ -69,6 +74,9 @@ hooks {
       ["lint"] = new Step {
         check = "flint run --full"
         exclusive = true
+      }
+      ["css"] = new Step {
+        check = "biome check src/main/resources/css"
       }
     }
   }

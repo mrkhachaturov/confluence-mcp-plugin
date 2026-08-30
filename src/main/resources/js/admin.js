@@ -14,7 +14,7 @@
 
     if (allToolsMeta.length === 0) {
       $list.append(
-        '<div style="padding:12px; color:#6b778c;">No tools registered.</div>',
+        '<div style="padding:12px; color:var(--ds-text-subtlest, #6b778c);">No tools registered.</div>',
       );
       return;
     }
@@ -274,7 +274,7 @@
       })
       .fail((xhr) => {
         $("#mcp-tools-list").html(
-          '<div style="padding:12px; color:#de350b;">Failed to load config (HTTP ' +
+          '<div style="padding:12px; color:var(--ds-text-danger, #de350b);">Failed to load config (HTTP ' +
             xhr.status +
             ").</div>",
         );

@@ -4,21 +4,37 @@ import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.tools.CqlSafety;
-import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.McpContext;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 
 /** Mirrors upstream: confluence_mcp.search_user() Returns: [{display_name, email}, ...] */
-public class SearchUserTool implements McpTool {
+public class SearchUserTool extends TypedTool<SearchUserTool.Args> {
+
+  private static final int MAX_LIMIT = 50;
+
+  public record Args(
+      @ToolArg(
+              value =
+                  "Search query - a CQL query string for user search. Examples of CQL: - Basic user"
+                      + " lookup by full name: 'user.fullname ~ \"First Last\"' Note: Special"
+                      + " identifiers need proper quoting in CQL: personal space keys (e.g.,"
+                      + " \"~username\"), reserved words, numeric IDs, and identifiers with special"
+                      + " characters.",
+              required = true)
+          String query,
+      @ToolArg(value = "Maximum number of results (1-50)", defaultValue = "10") int limit) {}
+
   private final ConfluenceRestClient client;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public SearchUserTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -33,58 +49,22 @@ public class SearchUserTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.of(
-                "query",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "Search query - a CQL query string for user search. Examples of CQL: - Basic user lookup by full name: 'user.fullname ~ \"First Last\"' Note: Special identifiers need proper quoting in CQL: personal space keys (e.g., \"~username\"), reserved words, numeric IDs, and identifiers with special characters."),
-                "limit",
-                    Map.of(
-                        "type",
-                        "integer",
-                        "description",
-                        "Maximum number of results (1-50)",
-                        "default",
-                        10),
-                "group_name",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "Group to search within on Server/DC instances (default: 'confluence-users'). Ignored on Cloud.",
-                        "default",
-                        "confluence-users")),
-        "required", List.of("query"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return false;
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String searchQuery = (String) args.get("query");
-    if (searchQuery == null || searchQuery.isBlank()) {
-      throw new McpToolException("'query' parameter is required");
-    }
-    int limit = Math.min(getInt(args, "limit", 10), 50);
+  protected String run(Args args, McpContext context) throws McpToolException {
+    int limit = Math.min(args.limit(), MAX_LIMIT);
 
-    // Use CQL search — works with both PAT and OAuth (3LO)
-    String cql = "type=user AND user.fullname~\"" + CqlSafety.quote(searchQuery) + "\"";
+    // CQL search works with both PAT and OAuth (3LO)
+    String cql = "type=user AND user.fullname~\"" + CqlSafety.quote(args.query()) + "\"";
     String rawJson =
-        client.getRaw("/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, authHeader);
+        client.getRaw(
+            "/rest/api/search?cql=" + encode(cql) + "&limit=" + limit, context.authHeader());
 
-    // Transform to upstream format: flat list of simplified user dicts
     try {
-      JsonNode root = mapper.readTree(rawJson);
-      JsonNode results = root.path("results");
+      JsonNode results = mapper.readTree(rawJson).path("results");
       ArrayNode output = mapper.createArrayNode();
 
       if (results.isArray()) {
@@ -101,18 +81,5 @@ public class SearchUserTool implements McpTool {
 
   private static String encode(String s) {
     return URLEncoder.encode(s, StandardCharsets.UTF_8);
-  }
-
-  private static int getInt(Map<String, Object> args, String key, int defaultVal) {
-    Object val = args.get(key);
-    if (val instanceof Number n) return n.intValue();
-    if (val instanceof String s) {
-      try {
-        return Integer.parseInt(s);
-      } catch (NumberFormatException e) {
-        return defaultVal;
-      }
-    }
-    return defaultVal;
   }
 }

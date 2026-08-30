@@ -2,22 +2,36 @@ package com.atlassian.mcp.plugin.tools.attachments;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.tools.McpContext;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Base64;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-public class GetPageImagesTool implements McpTool {
-  private final ConfluenceRestClient client;
-  private final ObjectMapper mapper = new ObjectMapper();
-  private static final long MAX_BYTES = 50 * 1024 * 1024;
+public class GetPageImagesTool extends TypedTool<GetPageImagesTool.Args> {
+
+  private static final long MAX_BYTES = 50L * 1024 * 1024;
   private static final Set<String> IMAGE_EXTENSIONS =
       Set.of("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp");
 
+  public record Args(
+      @ToolArg(
+              value =
+                  "The ID of the Confluence page or blog post to retrieve images from. Example:"
+                      + " '123456789'",
+              required = true)
+          String contentId) {}
+
+  private final ConfluenceRestClient client;
+  private final ObjectMapper mapper = new ObjectMapper();
+
   public GetPageImagesTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -32,56 +46,34 @@ public class GetPageImagesTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.of(
-                "content_id",
-                Map.of(
-                    "type",
-                    "string",
-                    "description",
-                    "The ID of the Confluence page or blog post to retrieve images from. Example: '123456789'")),
-        "required", List.of("content_id"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return false;
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String contentId = (String) args.get("content_id");
-    if (contentId == null || contentId.isBlank()) {
-      throw new McpToolException("'content_id' parameter is required");
-    }
-    contentId = McpTool.resolvePageId(contentId);
+  protected String run(Args args, McpContext context) throws McpToolException {
+    String contentId = McpTool.resolvePageId(args.contentId());
 
     String listJson =
         client.get(
             "/rest/api/content/" + contentId + "/child/attachment?limit=100&expand=version",
-            authHeader);
+            context.authHeader());
     try {
-      JsonNode root = mapper.readTree(listJson);
-      JsonNode results = root.path("results");
+      JsonNode results = mapper.readTree(listJson).path("results");
       if (!results.isArray() || results.isEmpty()) {
         return "{\"message\":\"No attachments found\",\"images\":[]}";
       }
 
-      com.fasterxml.jackson.databind.node.ArrayNode images = mapper.createArrayNode();
+      ArrayNode images = mapper.createArrayNode();
       for (JsonNode att : results) {
         String title = att.path("title").asText("");
         String mediaType = att.path("metadata").path("mediaType").asText("");
 
-        // Check if this is an image
         boolean isImage = mediaType.startsWith("image/");
         if (!isImage) {
-          // Fallback: check file extension
           int dot = title.lastIndexOf('.');
           if (dot >= 0) {
-            String ext = title.substring(dot + 1).toLowerCase();
+            String ext = title.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
             isImage = IMAGE_EXTENSIONS.contains(ext);
             if (isImage && mediaType.isEmpty()) {
               mediaType = "image/" + (ext.equals("jpg") ? "jpeg" : ext);
@@ -91,10 +83,11 @@ public class GetPageImagesTool implements McpTool {
         if (!isImage) continue;
 
         String attId = att.path("id").asText();
-        com.fasterxml.jackson.databind.node.ObjectNode entry = mapper.createObjectNode();
+        ObjectNode entry = mapper.createObjectNode();
         entry.put("filename", title);
         try {
-          byte[] data = client.getBytes("/rest/api/content/" + attId + "/download", authHeader);
+          byte[] data =
+              client.getBytes("/rest/api/content/" + attId + "/download", context.authHeader());
           if (data.length > MAX_BYTES) {
             entry.put("error", "Exceeds 50 MB limit");
           } else {
@@ -108,7 +101,7 @@ public class GetPageImagesTool implements McpTool {
         images.add(entry);
       }
 
-      com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+      ObjectNode out = mapper.createObjectNode();
       out.put("count", images.size());
       out.set("images", images);
       return mapper.writeValueAsString(out);

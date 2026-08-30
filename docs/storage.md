@@ -3,14 +3,11 @@
 ![](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html)
 
 - #### Page
-
 - [View in Confluence](https://confluence.atlassian.com/login.action?os_destination=%2Fpages%2Fviewpage.action%3FpageId%3D790796544)
 - [Edit Page](https://confluence.atlassian.com/login.action?os_destination=https%3A%2F%2Fconfluence.atlassian.com%2Fpages%2Feditpage.action%3FpageId%3D790796544%26atl_token%3D6b548f19370ebab893ed15c3ee90d915ac0856ae)
 - #### Viewport
-
 - [Manage Viewport](https://confluence.atlassian.com/login.action?os_destination=%2Fspaces%2Fscroll-viewport%2Fconfig.action%3Fkey%3DDOC)
 - #### Confluence
-
 - [Dashboard](https://confluence.atlassian.com/login.action?os_destination=%2Fdashboard.action)
 - [Space Directory](https://confluence.atlassian.com/login.action?os_destination=%2Fspacedirectory%2Fview.action)
 - [People Directory](https://confluence.atlassian.com/login.action?os_destination=%2Fpeopledirectory.action)
@@ -18,8 +15,6 @@
 [Cloud](https://confluence.atlassian.com/spaces/ConfCloud/pages/941614888/Confluence+Cloud+Documentation+Home)
 
 Data Center 10.2
-
-
 
 ###### Versions
 
@@ -41,12 +36,12 @@ Data Center 10.2
 
 # Confluence Storage Format
 
-#### Confluence Markup
+## Confluence Markup
 
 - [Confluence Storage Format](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html)
 - [Confluence Wiki Markup](https://confluence.atlassian.com/doc/confluence-wiki-markup-251003035.html)
 
-#### On this page
+### On this page
 
 - [Storage Format Source Editor](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html#ConfluenceStorageFormat-StorageFormatSourceEditor)
 - [Before you begin](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html#ConfluenceStorageFormat-Beforeyoubegin)
@@ -112,7 +107,6 @@ With the Storage Format Source Editor, you can edit the storage format of Conflu
 
 - Search for values and replace them
 
-
 ### Before you begin
 
 When you upgrade to a Confluence version that includes the bundled Storage Format Source Editor app, the upgrade is automatic in most cases. However, keep the following in mind:
@@ -122,7 +116,6 @@ When you upgrade to a Confluence version that includes the bundled Storage Forma
 - If you uninstall and then reinstall the app, your previous configuration will be restored automatically.
 
 - When you upgrade Confluence, any existing Source Editor permissions will carry over to the new version, so your setup won’t be disrupted.
-
 
 ### Granting access to the Source Editor
 
@@ -137,7 +130,6 @@ To open the Source Editor:
 1. Open the Confluence editor. [How to use the editor](https://confluence.atlassian.com/doc/the-editor-251006017.html)
 
 2. In the editor toolbar, select the Source Editor icon `<>`.
-
 
 ![Source editor icon in the confluence editor](https://confluence.atlassian.com/doc/files/790796544/1721008654/1/1770070263789/source-editor-icon.png)
 
@@ -198,14 +190,13 @@ Headings 4 to 6 are also available and follow the same pattern
 | Link to an external site | ```none<br><a href="http://www.atlassian.com">Atlassian</a><br>``` | [Atlassian](http://www.atlassian.com/) |
 | Anchor link (same page) | ```none<br><ac:link ac:anchor="anchor"><br>  <ac:plain-text-link-body><br>    <![CDATA[Anchor Link]]><br>  </ac:plain-text-link-body><br></ac:link><br>``` | [Anchor Link](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html#ConfluenceStorageFormat-Links) |
 | Anchor link (another page) | ```none<br><ac:link ac:anchor="anchor"><br>  <ri:page ri:content-title="pagetitle"/><br>  <ac:plain-text-link-body><br>    <![CDATA[Anchor Link]]><br>  </ac:plain-text-link-body><br></ac:link><br>``` | [Anchor Link](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html#ConfluenceStorageFormat-Macros) |
-| Link with an embedded image for the body | ```none<br><ac:link ac:anchor="Anchor Link"><br>  <ac:link-body><br>	<ac:image><ri:url ri:value="http://confluence.atlassian.com/<br>images/logo/confluence_48_trans.png" /></ac:image><br>  </ac:link-body><br></ac:link><br>```<br>For rich content like _images_, you need to use ` ac:link-body` to wrap the contents. |  |
+| Link with an embedded image for the body | ```none<br><ac:link ac:anchor="Anchor Link"><br>  <ac:link-body><br>    <ac:image><ri:url ri:value="http://confluence.atlassian.com/<br>images/logo/confluence_48_trans.png" /></ac:image><br>  </ac:link-body><br></ac:link><br>```<br>For rich content like _images_, you need to use `ac:link-body` to wrap the contents. |  |
 
-#### A note about link bodies
+### A note about link bodies
 
 All links received from the editor will be stored as plain text by default, unless they are detected to contain the limited set of mark up that we allow in link bodies. Here are some examples of markup we support in link bodies.
 
 An example of different link bodies
-
 
 ```none
 <ac:link>
@@ -249,13 +240,14 @@ Supported image attributes (some of these attributes mirror the equivalent HTML 
 ## Tables
 
 | Format type | In Confluence 4.0 and later | What you will get |
-| Two column, two row (top header row) | ```none<br><table><br><tbody><br>  <br><tr><br>    <br><th>Table Heading Cell 1</th><br>    <br><th>Table Heading Cell 2</th><br>  </tr><br>  <br><tr><br>    <br><td>Normal Cell 1</td><br>    <br><td>Normal Cell 2</td><br>  </tr><br></tbody><br></table> <br>``` | | Table Heading Cell 1 | Table Heading Cell 2 |
-| --- | --- |
-| Normal Cell 1 | Normal Cell 2 | |
-| Two column, three rows, 2nd and third with merged cells in first row | ```none<br><table><br><tbody><br>  <br><tr><br>    <br><th>Table Heading Cell 1</th><br>    <br><th>Table Heading Cell 2</th><br>  </tr><br>  <br><tr><br>    <br><td rowspan="2">Merged Cell</td><br>    <br><td>Normal Cell 1</td><br>  </tr><br>  <br><tr><br>    <br><td colspan="1">Normal Cell 2</td><br>  </tr><br></tbody><br></table> <br>``` | | Table Heading Cell 1 | Table Heading Cell 2 |
-| --- | --- |
-| Merged Cell | Normal Cell 1 |
-| Normal Cell 2 | |
+
+| Two column, two row (top header row)                                 | ```none<br><table><br><tbody><br>  <br><tr><br>    <br><th>Table Heading Cell 1</th><br>    <br><th>Table Heading Cell 2</th><br>  </tr><br>  <br><tr><br>    <br><td>Normal Cell 1</td><br>    <br><td>Normal Cell 2</td><br>  </tr><br></tbody><br></table> <br>```                                                                                  |     | Table Heading Cell 1 | Table Heading Cell 2 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --- | -------------------- | -------------------- |
+| Normal Cell 1                                                        | Normal Cell 2                                                                                                                                                                                                                                                                                                                                          |     |                      |                      |
+| Two column, three rows, 2nd and third with merged cells in first row | ```none<br><table><br><tbody><br>  <br><tr><br>    <br><th>Table Heading Cell 1</th><br>    <br><th>Table Heading Cell 2</th><br>  </tr><br>  <br><tr><br>    <br><td rowspan="2">Merged Cell</td><br>    <br><td>Normal Cell 1</td><br>  </tr><br>  <br><tr><br>    <br><td colspan="1">Normal Cell 2</td><br>  </tr><br></tbody><br></table> <br>``` |     | Table Heading Cell 1 | Table Heading Cell 2 |
+| ---                                                                  | ---                                                                                                                                                                                                                                                                                                                                                    |     |                      |                      |
+| Merged Cell                                                          | Normal Cell 1                                                                                                                                                                                                                                                                                                                                          |     |                      |                      |
+| Normal Cell 2                                                        |                                                                                                                                                                                                                                                                                                                                                        |     |                      |                      |
 
 ## Page layouts
 
@@ -270,11 +262,11 @@ The recognized values of `ac:type` for `ac:layout-section` are:
 
 | `ac:type` | Expected number of cells | Description |
 | `single` | 1 | One cell occupies the entire section. |
-| ` two_equal` | 2 | Two cells of equal width. |
-| ` two_left_sidebar` | 2 | A narrow (~30%) cell followed by a wide cell. |
-| ` two_right_sidebar` | 2 | A wide cell followed by a narrow (~30%) cell. |
-| ` three_equal` | 3 | Three cells of equal width. |
-| ` three_with_sidebars` | 3 | A narrow (~20%) cell at each end with a wide cell in the middle. |
+| `two_equal` | 2 | Two cells of equal width. |
+| `two_left_sidebar` | 2 | A narrow (~30%) cell followed by a wide cell. |
+| `two_right_sidebar` | 2 | A wide cell followed by a narrow (~30%) cell. |
+| `three_equal` | 3 | Three cells of equal width. |
+| `three_with_sidebars` | 3 | A narrow (~20%) cell at each end with a wide cell in the middle. |
 
 The following example shows one of the more complicated layouts from the old format built in the new. The word `{content}` indicates where further XHTML or Confluence storage format block content would be entered, such as `<p>` or `<table>` tags.
 
@@ -326,7 +318,7 @@ Resource identifiers are used to describe "links" or "references" to resources i
 | Resource | Resource identifier format |
 | Page | ```none<br><ri:page ri:space-key="FOO" ri:content-title="Test Page"/><br>```<br>Notes:<br>- `ri:space-key`: (optional) denotes the space key. This can be omitted to create a relative reference.<br>- `ri:content-title`: (required) denotes the title of the page. |
 | Blog Post | ```none<br><ri:blog-post ri:space-key="FOO" ri:content-title="First Post" ri:posting-day="2012/01/30" /><br>```<br>Notes:<br>- `ri:space-key`: (optional) denotes the space key. This can be omitted to create a relative reference.<br>- `ri:content-title`: (required) denotes the title of the page.<br>- `ri:posting-day`: (required) denotes the posting day. The format is YYYY/MM/DD. |
-| Attachment | ```none<br><ri:attachment ri:filename><br>	... resource identifier for the container of the attachment ...<br></ri:attachment><br>```<br>Notes:<br>- `ri:filename`: (required) denotes the name of the attachment.<br>- the body of the `ri:attachment` element should be a resource identifier denoting the container of the attachment. This can be omitted to create a relative attachment reference (similar to \[foo.png\] in wiki markup).<br>Examples:<br>Relative Attachment Reference<br> <br>```none<br><ri:attachment ri:filename="happy.gif" /><br>```<br>Absolute Attachment Reference<br> <br>```none<br><ri:attachment ri:filename="happy.gif"><br>	<ri:page ri:space-key="TST" ri:content-title="Test Page"/><br></ri:attachment><br>``` |
+| Attachment | ```none<br><ri:attachment ri:filename><br>    ... resource identifier for the container of the attachment ...<br></ri:attachment><br>```<br>Notes:<br>- `ri:filename`: (required) denotes the name of the attachment.<br>- the body of the `ri:attachment` element should be a resource identifier denoting the container of the attachment. This can be omitted to create a relative attachment reference (similar to \[foo.png\] in wiki markup).<br>Examples:<br>Relative Attachment Reference<br> <br>```none<br><ri:attachment ri:filename="happy.gif" /><br>```<br>Absolute Attachment Reference<br> <br>```none<br><ri:attachment ri:filename="happy.gif"><br>    <ri:page ri:space-key="TST" ri:content-title="Test Page"/><br></ri:attachment><br>``` |
 | URL | ```none<br><ri:url ri:value="http://example.org/sample.gif"/><br>```<br>Notes:<br>- `ri:value`: (required) denotes the actual URL value. |
 | Shortcut | ```none<br><ri:shortcut ri:key="jira" ri:parameter="ABC-123"><br>```<br>Notes:<br>- `ri:key`: (required) represents the key of the Confluence shortcut.<br>- `ri:parameter`: (required) represents the parameter to pass into the Confluence shortcut.<br>- The example above is equivalent to `[ABC-123@jira]` in wiki markup. |
 | User | ```none<br><ri:user ri:userkey="2c9680f7405147ee0140514c26120003"/><br>```<br>Notes:<br>- `ri:userkey`: (required) denotes the unique identifier of the user. |
@@ -410,7 +402,7 @@ It wasn't relevant
 
 Provide feedback about this article
 
-#### Related content
+### Related content
 
 - [Manage your storage usage](https://support.atlassian.com/confluence-cloud/docs/manage-your-storage-usage/)
 - [Where Does Confluence Store Its Data?](https://support.atlassian.com/confluence/kb/where-does-confluence-store-its-data/)
@@ -427,7 +419,7 @@ Powered by [Confluence](http://www.atlassian.com/) and [Scroll Viewport](https:/
 
 a1096093.cdn.optimizely.com
 
-# a1096093.cdn.optimizely.com is blocked
+## a1096093.cdn.optimizely.com is blocked
 
 This page has been blocked by an extension
 
@@ -436,7 +428,6 @@ This page has been blocked by an extension
 ERR\_BLOCKED\_BY\_CLIENT
 
 Reload
-
 
 This page has been blocked by an extension
 

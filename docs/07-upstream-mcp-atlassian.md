@@ -14,114 +14,129 @@ with Jira's REST API.
 ## Jira Tools (49 total)
 
 ### Issues & Search
-| Tool | Type | Description |
-|---|---|---|
-| `get_issue` | Read | Get issue details with customizable fields |
-| `search` | Read | Search with JQL |
-| `search_fields` | Read | Search/list available fields |
-| `get_field_options` | Read | Get options for select fields |
-| `get_project_issues` | Read | Get issues in a project |
-| `create_issue` | Write | Create single issue |
-| `batch_create_issues` | Write | Batch create issues |
-| `update_issue` | Write | Update issue |
-| `delete_issue` | Write | Delete issue |
-| `batch_get_changelogs` | Read | Get change history |
+
+| Tool                   | Type  | Description                                |
+| ---------------------- | ----- | ------------------------------------------ |
+| `get_issue`            | Read  | Get issue details with customizable fields |
+| `search`               | Read  | Search with JQL                            |
+| `search_fields`        | Read  | Search/list available fields               |
+| `get_field_options`    | Read  | Get options for select fields              |
+| `get_project_issues`   | Read  | Get issues in a project                    |
+| `create_issue`         | Write | Create single issue                        |
+| `batch_create_issues`  | Write | Batch create issues                        |
+| `update_issue`         | Write | Update issue                               |
+| `delete_issue`         | Write | Delete issue                               |
+| `batch_get_changelogs` | Read  | Get change history                         |
 
 ### Comments
-| Tool | Type | Description |
-|---|---|---|
-| `add_comment` | Write | Add comment to issue |
+
+| Tool           | Type  | Description           |
+| -------------- | ----- | --------------------- |
+| `add_comment`  | Write | Add comment to issue  |
 | `edit_comment` | Write | Edit existing comment |
 
 ### Transitions & Workflows
-| Tool | Type | Description |
-|---|---|---|
-| `get_transitions` | Read | Get available status transitions |
-| `transition_issue` | Write | Change issue status |
+
+| Tool               | Type  | Description                      |
+| ------------------ | ----- | -------------------------------- |
+| `get_transitions`  | Read  | Get available status transitions |
+| `transition_issue` | Write | Change issue status              |
 
 ### Worklogs & Time Tracking
-| Tool | Type | Description |
-|---|---|---|
-| `get_worklog` | Read | Get worklog entries |
-| `add_worklog` | Write | Log time on issue |
+
+| Tool          | Type  | Description         |
+| ------------- | ----- | ------------------- |
+| `get_worklog` | Read  | Get worklog entries |
+| `add_worklog` | Write | Log time on issue   |
 
 ### Boards & Sprints (Agile)
-| Tool | Type | Description |
-|---|---|---|
-| `get_agile_boards` | Read | List Jira Agile boards |
-| `get_board_issues` | Read | Get issues on a board |
+
+| Tool                     | Type | Description            |
+| ------------------------ | ---- | ---------------------- |
+| `get_agile_boards`       | Read | List Jira Agile boards |
+| `get_board_issues`       | Read | Get issues on a board  |
 | `get_sprints_from_board` | Read | Get sprints from board |
-| `get_sprint_issues` | Read | Get sprint issues |
+| `get_sprint_issues`      | Read | Get sprint issues      |
 
 ### Issue Links
-| Tool | Type | Description |
-|---|---|---|
-| `get_link_types` | Read | Get link type definitions |
-| `create_issue_link` | Write | Link two issues |
-| `create_remote_issue_link` | Write | Create remote link |
-| `remove_issue_link` | Write | Remove link |
+
+| Tool                       | Type  | Description               |
+| -------------------------- | ----- | ------------------------- |
+| `get_link_types`           | Read  | Get link type definitions |
+| `create_issue_link`        | Write | Link two issues           |
+| `create_remote_issue_link` | Write | Create remote link        |
+| `remove_issue_link`        | Write | Remove link               |
 
 ### Epics
-| Tool | Type | Description |
-|---|---|---|
+
+| Tool           | Type  | Description        |
+| -------------- | ----- | ------------------ |
 | `link_to_epic` | Write | Link issue to epic |
 
 ### Projects & Versions
-| Tool | Type | Description |
-|---|---|---|
-| `get_all_projects` | Read | List all projects |
-| `get_project_versions` | Read | Get versions in project |
-| `get_project_components` | Read | Get components in project |
-| `create_version` | Write | Create version |
-| `batch_create_versions` | Write | Batch create versions |
+
+| Tool                     | Type  | Description               |
+| ------------------------ | ----- | ------------------------- |
+| `get_all_projects`       | Read  | List all projects         |
+| `get_project_versions`   | Read  | Get versions in project   |
+| `get_project_components` | Read  | Get components in project |
+| `create_version`         | Write | Create version            |
+| `batch_create_versions`  | Write | Batch create versions     |
 
 ### Users & Watchers
-| Tool | Type | Description |
-|---|---|---|
-| `get_user_profile` | Read | Retrieve user profile |
-| `get_issue_watchers` | Read | Get issue watchers list |
-| `add_watcher` | Write | Add user as watcher |
-| `remove_watcher` | Write | Remove watcher |
+
+| Tool                 | Type  | Description             |
+| -------------------- | ----- | ----------------------- |
+| `get_user_profile`   | Read  | Retrieve user profile   |
+| `get_issue_watchers` | Read  | Get issue watchers list |
+| `add_watcher`        | Write | Add user as watcher     |
+| `remove_watcher`     | Write | Remove watcher          |
 
 ### Attachments & Media
-| Tool | Type | Description |
-|---|---|---|
+
+| Tool                   | Type | Description                   |
+| ---------------------- | ---- | ----------------------------- |
 | `download_attachments` | Read | Download and encode as base64 |
-| `get_issue_images` | Read | Extract and encode images |
+| `get_issue_images`     | Read | Extract and encode images     |
 
 ### Service Desk (DC only)
-| Tool | Type | Description |
-|---|---|---|
+
+| Tool                           | Type | Description             |
+| ------------------------------ | ---- | ----------------------- |
 | `get_service_desk_for_project` | Read | Get service desk config |
-| `get_service_desk_queues` | Read | Get service desk queues |
-| `get_queue_issues` | Read | Get issues in queue |
+| `get_service_desk_queues`      | Read | Get service desk queues |
+| `get_queue_issues`             | Read | Get issues in queue     |
 
 ### Forms (Proforma)
-| Tool | Type | Description |
-|---|---|---|
-| `get_issue_proforma_forms` | Read | Get Proforma forms |
-| `get_proforma_form_details` | Read | Get form details |
+
+| Tool                           | Type  | Description         |
+| ------------------------------ | ----- | ------------------- |
+| `get_issue_proforma_forms`     | Read  | Get Proforma forms  |
+| `get_proforma_form_details`    | Read  | Get form details    |
 | `update_proforma_form_answers` | Write | Update form answers |
 
 ### Dates & Metrics
-| Tool | Type | Description |
-|---|---|---|
-| `get_issue_dates` | Read | Get issue date fields |
-| `get_issue_sla` | Read | Get SLA metrics |
-| `get_issue_development_info` | Read | Get dev info (Cloud) |
-| `get_issues_development_info` | Read | Batch get dev info |
+
+| Tool                          | Type | Description           |
+| ----------------------------- | ---- | --------------------- |
+| `get_issue_dates`             | Read | Get issue date fields |
+| `get_issue_sla`               | Read | Get SLA metrics       |
+| `get_issue_development_info`  | Read | Get dev info (Cloud)  |
+| `get_issues_development_info` | Read | Batch get dev info    |
 
 ## Authentication (Jira DC)
 
 For Data Center, the upstream project supports:
 
 1. **Personal Access Token (PAT)** - Recommended
-   ```
+
+   ```text
    Authorization: Bearer <PAT>
    ```
 
 2. **Username + Password** (Basic Auth)
-   ```
+
+   ```text
    Authorization: Basic <base64(user:pass)>
    ```
 
@@ -134,35 +149,36 @@ For Data Center, the upstream project supports:
 
 The upstream project uses REST API v2 for Data Center:
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/rest/api/2/issue/{key}` | GET | Get issue |
-| `/rest/api/2/search` | GET/POST | JQL search |
-| `/rest/api/2/issue` | POST | Create issue |
-| `/rest/api/2/issue/{key}` | PUT | Update issue |
-| `/rest/api/2/issue/{key}` | DELETE | Delete issue |
-| `/rest/api/2/issue/{key}/comment` | POST | Add comment |
-| `/rest/api/2/issue/{key}/worklog` | GET/POST | Worklogs |
-| `/rest/api/2/issue/{key}/transitions` | GET/POST | Transitions |
-| `/rest/api/2/issue/{key}/watchers` | GET/POST/DELETE | Watchers |
-| `/rest/api/2/project` | GET | List projects |
-| `/rest/api/2/user` | GET | User info |
-| `/rest/agile/1.0/board` | GET | Agile boards |
-| `/rest/agile/1.0/sprint` | GET | Sprints |
+| Endpoint                              | Method          | Purpose       |
+| ------------------------------------- | --------------- | ------------- |
+| `/rest/api/2/issue/{key}`             | GET             | Get issue     |
+| `/rest/api/2/search`                  | GET/POST        | JQL search    |
+| `/rest/api/2/issue`                   | POST            | Create issue  |
+| `/rest/api/2/issue/{key}`             | PUT             | Update issue  |
+| `/rest/api/2/issue/{key}`             | DELETE          | Delete issue  |
+| `/rest/api/2/issue/{key}/comment`     | POST            | Add comment   |
+| `/rest/api/2/issue/{key}/worklog`     | GET/POST        | Worklogs      |
+| `/rest/api/2/issue/{key}/transitions` | GET/POST        | Transitions   |
+| `/rest/api/2/issue/{key}/watchers`    | GET/POST/DELETE | Watchers      |
+| `/rest/api/2/project`                 | GET             | List projects |
+| `/rest/api/2/user`                    | GET             | User info     |
+| `/rest/agile/1.0/board`               | GET             | Agile boards  |
+| `/rest/agile/1.0/sprint`              | GET             | Sprints       |
 
 ## Cloud vs Data Center Differences
 
-| Aspect | Cloud | Data Center |
-|---|---|---|
-| User field | `accountId` | `name` / `key` |
-| Assignee | `accountId` | `name` or `key` |
-| Pagination | Token-based (`nextPageToken`) | Offset-based (`start`) |
-| Search API | `/rest/api/3/search/jql` (POST) | `/rest/api/2/search` (GET/POST) |
-| Service Desk queues | Different API | Via `/rest/servicedeskapi/` |
+| Aspect              | Cloud                           | Data Center                     |
+| ------------------- | ------------------------------- | ------------------------------- |
+| User field          | `accountId`                     | `name` / `key`                  |
+| Assignee            | `accountId`                     | `name` or `key`                 |
+| Pagination          | Token-based (`nextPageToken`)   | Offset-based (`start`)          |
+| Search API          | `/rest/api/3/search/jql` (POST) | `/rest/api/2/search` (GET/POST) |
+| Service Desk queues | Different API                   | Via `/rest/servicedeskapi/`     |
 
 ## Transport
 
 The upstream supports three MCP transports:
+
 - **STDIO** (default) - for Claude Desktop, Cursor
 - **SSE** - `http://host:port/sse`
 - **Streamable HTTP** - `http://host:port/mcp` (recommended)
@@ -170,13 +186,14 @@ The upstream supports three MCP transports:
 ## Tool Filtering
 
 Built-in filtering mechanisms:
+
 - `--read-only` - Exclude all write tools
 - `--enabled-tools tool1,tool2` - Enable only specific tools
 - `--toolsets default` - Use predefined toolsets
 
 ## Project Structure
 
-```
+```text
 src/mcp_atlassian/
 ├── jira/              # Jira client (21 mixins composed into JiraFetcher)
 │   ├── client.py      # Base client with auth
@@ -220,5 +237,5 @@ Since our plugin runs **inside** Jira:
 
 ## References
 
-- Upstream repo: https://github.com/sooperset/mcp-atlassian
-- MCP Atlassian docs: https://github.com/sooperset/mcp-atlassian/blob/main/README.md
+- Upstream repo: <https://github.com/sooperset/mcp-atlassian>
+- MCP Atlassian docs: <https://github.com/sooperset/mcp-atlassian/blob/main/README.md>

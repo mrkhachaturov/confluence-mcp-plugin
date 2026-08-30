@@ -19,16 +19,16 @@ Token. Admins control access and tool availability from within Jira's admin UI.
 
 ## Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Transport | Streamable HTTP, JSON responses only (no SSE) | Jira async servlets broken; Jira ops are fast |
-| Endpoint | `<rest>` module at `/rest/mcp/1.0/` | Cleaner URL, follows BigPicture pattern |
-| Tool implementation | Call Jira's own REST API internally | Near-direct port from upstream Python; no need to learn 20+ Java API classes |
-| Tool count | All 46 from upstream v0.21.0 | Each tool is a thin REST call wrapper; mechanical translation |
-| Auth | Jira PAT passthrough | Zero custom auth code; permissions are automatically correct |
-| Admin control | Global toggle + user allowlist (designed for per-user granularity later) | Simple v1, extensible structure |
-| MCP SDK | No runtime dependency | Avoids OSGi conflicts; protocol is 3 methods for tools-only server |
-| Plugin key | `atlassian-mcp-plugin` | Keeps door open for Confluence support |
+| Decision            | Choice                                                                   | Rationale                                                                    |
+| ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Transport           | Streamable HTTP, JSON responses only (no SSE)                            | Jira async servlets broken; Jira ops are fast                                |
+| Endpoint            | `<rest>` module at `/rest/mcp/1.0/`                                      | Cleaner URL, follows BigPicture pattern                                      |
+| Tool implementation | Call Jira's own REST API internally                                      | Near-direct port from upstream Python; no need to learn 20+ Java API classes |
+| Tool count          | All 46 from upstream v0.21.0                                             | Each tool is a thin REST call wrapper; mechanical translation                |
+| Auth                | Jira PAT passthrough                                                     | Zero custom auth code; permissions are automatically correct                 |
+| Admin control       | Global toggle + user allowlist (designed for per-user granularity later) | Simple v1, extensible structure                                              |
+| MCP SDK             | No runtime dependency                                                    | Avoids OSGi conflicts; protocol is 3 methods for tools-only server           |
+| Plugin key          | `atlassian-mcp-plugin`                                                   | Keeps door open for Confluence support                                       |
 
 ## Upstream Version Tracking
 
@@ -57,7 +57,7 @@ any changes.
 
 ## Architecture
 
-```
+```text
 +-----------------------------------------------------+
 | Jira DC 10.7.4 (bpm.yourdomain.com)                 |
 |                                                      |
@@ -122,15 +122,15 @@ access only.
 
 Receives JSON-RPC 2.0 messages. Returns `application/json`.
 
-| Method | Action | Response |
-|---|---|---|
-| `initialize` | Return server info + capabilities (tools only). No session ID (stateless). | `InitializeResult` |
-| `notifications/initialized` | Acknowledge. | 202 Accepted |
-| `tools/list` | Return tool definitions filtered by user + admin config. | `ListToolsResult` |
-| `tools/call` | Dispatch to tool, return result. | `CallToolResult` |
-| `ping` | Keep-alive. | Empty result |
+| Method                      | Action                                                                     | Response           |
+| --------------------------- | -------------------------------------------------------------------------- | ------------------ |
+| `initialize`                | Return server info + capabilities (tools only). No session ID (stateless). | `InitializeResult` |
+| `notifications/initialized` | Acknowledge.                                                               | 202 Accepted       |
+| `tools/list`                | Return tool definitions filtered by user + admin config.                   | `ListToolsResult`  |
+| `tools/call`                | Dispatch to tool, return result.                                           | `CallToolResult`   |
+| `ping`                      | Keep-alive.                                                                | Empty result       |
 
-Malformed JSON or unparseable JSON-RPC returns error code `-32700` (Parse Error).
+Malformed JSON or unparsable JSON-RPC returns error code `-32700` (Parse Error).
 
 ### Protocol Rules
 
@@ -154,23 +154,23 @@ Returns 405 Method Not Allowed. Sessions deferred to future version.
 
 ### Headers
 
-| Header | Direction | Purpose |
-|---|---|---|
-| `MCP-Protocol-Version` | Request | Client declares protocol version (accept `2025-06-18`) |
-| `Authorization` | Request | Jira PAT, validated by Jira before our code runs |
+| Header                 | Direction | Purpose                                                |
+| ---------------------- | --------- | ------------------------------------------------------ |
+| `MCP-Protocol-Version` | Request   | Client declares protocol version (accept `2025-06-18`) |
+| `Authorization`        | Request   | Jira PAT, validated by Jira before our code runs       |
 
 Note: `MCP-Session-Id` is not used in v1 (stateless). Clients that send it are not
 rejected; the header is simply ignored.
 
 ### Error Codes
 
-| Code | Meaning |
-|---|---|
-| -32700 | Parse Error (malformed JSON) |
+| Code   | Meaning                                                       |
+| ------ | ------------------------------------------------------------- |
+| -32700 | Parse Error (malformed JSON)                                  |
 | -32600 | Invalid Request (valid JSON but not a valid JSON-RPC message) |
-| -32601 | Method Not Found |
-| -32602 | Invalid Params (bad tool arguments) |
-| -32603 | Internal Error (Jira API failure) |
+| -32601 | Method Not Found                                              |
+| -32602 | Invalid Params (bad tool arguments)                           |
+| -32603 | Internal Error (Jira API failure)                             |
 
 ## Tool Architecture
 
@@ -217,22 +217,22 @@ redirect on localhost calls).
 
 ### Tool Categories (46 tools, ported from upstream v0.21.0)
 
-| Category | Tools | Count |
-|---|---|---|
-| Issues and Search | search, get_issue, create_issue, update_issue, delete_issue, batch_create_issues, batch_get_changelogs | 7 |
-| Comments | add_comment, edit_comment | 2 |
-| Transitions | get_transitions, transition_issue | 2 |
-| Worklogs | get_worklog, add_worklog | 2 |
-| Boards and Sprints | get_agile_boards, get_board_issues, get_sprints_from_board, get_sprint_issues | 4 |
-| Links | get_link_types, create_issue_link, create_remote_issue_link, remove_issue_link | 4 |
-| Epics | link_to_epic | 1 |
-| Projects and Versions | get_all_projects, get_project_issues, get_project_versions, get_project_components, create_version, batch_create_versions | 6 |
-| Users and Watchers | get_user_profile, get_issue_watchers, add_watcher, remove_watcher | 4 |
-| Attachments | download_attachments, get_issue_images | 2 |
-| Fields | search_fields, get_field_options | 2 |
-| Service Desk | get_service_desk_for_project, get_service_desk_queues, get_queue_issues | 3 |
-| Forms | get_issue_proforma_forms, get_proforma_form_details, update_proforma_form_answers | 3 |
-| Dates and Metrics | get_issue_dates, get_issue_sla, get_issue_development_info, get_issues_development_info | 4 |
+| Category              | Tools                                                                                                                     | Count |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Issues and Search     | search, get_issue, create_issue, update_issue, delete_issue, batch_create_issues, batch_get_changelogs                    | 7     |
+| Comments              | add_comment, edit_comment                                                                                                 | 2     |
+| Transitions           | get_transitions, transition_issue                                                                                         | 2     |
+| Worklogs              | get_worklog, add_worklog                                                                                                  | 2     |
+| Boards and Sprints    | get_agile_boards, get_board_issues, get_sprints_from_board, get_sprint_issues                                             | 4     |
+| Links                 | get_link_types, create_issue_link, create_remote_issue_link, remove_issue_link                                            | 4     |
+| Epics                 | link_to_epic                                                                                                              | 1     |
+| Projects and Versions | get_all_projects, get_project_issues, get_project_versions, get_project_components, create_version, batch_create_versions | 6     |
+| Users and Watchers    | get_user_profile, get_issue_watchers, add_watcher, remove_watcher                                                         | 4     |
+| Attachments           | download_attachments, get_issue_images                                                                                    | 2     |
+| Fields                | search_fields, get_field_options                                                                                          | 2     |
+| Service Desk          | get_service_desk_for_project, get_service_desk_queues, get_queue_issues                                                   | 3     |
+| Forms                 | get_issue_proforma_forms, get_proforma_form_details, update_proforma_form_answers                                         | 3     |
+| Dates and Metrics     | get_issue_dates, get_issue_sla, get_issue_development_info, get_issues_development_info                                   | 4     |
 
 Write tools (create, update, delete, transition, add_comment, etc.) are tagged so
 `readOnlyMode` can filter them out.
@@ -242,11 +242,11 @@ Write tools (create, update, delete, transition, add_comment, etc.) are tagged s
 Not all tools work on every Jira instance. At plugin startup, ToolRegistry checks
 which products/apps are installed and only registers applicable tools:
 
-| Requirement | Detection | Tools affected |
-|---|---|---|
-| Jira Software | Check if `com.atlassian.jira.plugins.jira-software-plugin` is installed | Boards, sprints (4 tools) |
-| Jira Service Management | Check if `com.atlassian.servicedesk` is installed | Service desk, queues, SLA (4 tools) |
-| Proforma / Forms | Check if `com.atlassian.proforma` is installed | Forms (3 tools) |
+| Requirement             | Detection                                                               | Tools affected                      |
+| ----------------------- | ----------------------------------------------------------------------- | ----------------------------------- |
+| Jira Software           | Check if `com.atlassian.jira.plugins.jira-software-plugin` is installed | Boards, sprints (4 tools)           |
+| Jira Service Management | Check if `com.atlassian.servicedesk` is installed                       | Service desk, queues, SLA (4 tools) |
+| Proforma / Forms        | Check if `com.atlassian.proforma` is installed                          | Forms (3 tools)                     |
 
 Development info tools (2) are always registered -- availability varies per issue/project,
 so errors are handled at call time rather than gated at startup.
@@ -260,11 +260,11 @@ requires Jira Software which is not installed on this instance").
 
 Tools that return collections enforce default limits to prevent oversized responses:
 
-| Parameter | Default | Hard cap |
-|---|---|---|
-| `maxResults` (search, board issues, sprint issues, etc.) | 50 | 200 |
-| Attachment download size | 5 MB per file | 10 MB |
-| Response timeout (per tool call) | 30 seconds | 60 seconds |
+| Parameter                                                | Default       | Hard cap   |
+| -------------------------------------------------------- | ------------- | ---------- |
+| `maxResults` (search, board issues, sprint issues, etc.) | 50            | 200        |
+| Attachment download size                                 | 5 MB per file | 10 MB      |
+| Response timeout (per tool call)                         | 30 seconds    | 60 seconds |
 
 Tools that support pagination accept `startAt` and `maxResults` parameters matching
 the upstream Python project's interface.
@@ -275,13 +275,13 @@ Each tool class includes a comment: `// Ported from mcp-atlassian v0.21.0 -- src
 
 ### Storage (PluginSettings)
 
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `com.atlassian.mcp.plugin.enabled` | boolean | false | Global MCP on/off |
-| `com.atlassian.mcp.plugin.allowedUsers` | string | "" | Comma-separated user keys (stable Jira identity); empty = all authenticated users |
-| `com.atlassian.mcp.plugin.disabledTools` | string | "" | Comma-separated tool names to hide |
-| `com.atlassian.mcp.plugin.readOnlyMode` | boolean | false | Hide all write tools |
-| `com.atlassian.mcp.plugin.jiraBaseUrl` | string | "" | Override internal Jira base URL for REST calls; empty = use ApplicationProperties.getBaseUrl() |
+| Key                                      | Type    | Default | Description                                                                                    |
+| ---------------------------------------- | ------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `com.atlassian.mcp.plugin.enabled`       | boolean | false   | Global MCP on/off                                                                              |
+| `com.atlassian.mcp.plugin.allowedUsers`  | string  | ""      | Comma-separated user keys (stable Jira identity); empty = all authenticated users              |
+| `com.atlassian.mcp.plugin.disabledTools` | string  | ""      | Comma-separated tool names to hide                                                             |
+| `com.atlassian.mcp.plugin.readOnlyMode`  | boolean | false   | Hide all write tools                                                                           |
+| `com.atlassian.mcp.plugin.jiraBaseUrl`   | string  | ""      | Override internal Jira base URL for REST calls; empty = use ApplicationProperties.getBaseUrl() |
 
 Note: `allowedUsers` uses Jira `userKey` (stable internal identifier), not username
 (which can change). The admin UI resolves display names for readability but stores keys.
@@ -303,7 +303,7 @@ Note: `allowedUsers` uses Jira `userKey` (stable internal identifier), not usern
 
 ## Project Structure
 
-```
+```text
 atlassian-mcp-plugin/
 +-- .mise.toml
 +-- justfile

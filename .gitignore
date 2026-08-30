@@ -1,9 +1,6 @@
 # Upstream references (local only)
 .upstream/
 
-# Codegen output (regenerated from upstream)
-.codegen/generated/
-
 # Maven
 target/
 
@@ -20,7 +17,14 @@ target/
 # RKstack / Claude Code
 .rkstack/
 .mcp.json
+.orca/
+.worktrees/
 .claude/settings.local.json
+CLAUDE.local.md
+
+# mise — personal overrides (env file paths, machine-specific tools)
+mise.local.toml
+.mise.local.toml
 
 # OS
 .DS_Store
@@ -28,3 +32,10 @@ Thumbs.db
 
 # Confluence swagger spec (downloaded locally for reference)
 confluence_dc_*_swagger*.json
+
+# Linter caches
+.lychee_cache/
+.rumdl_cache/
+
+# Subagent worktrees (created by the harness, never committed)
+.claude/worktrees/

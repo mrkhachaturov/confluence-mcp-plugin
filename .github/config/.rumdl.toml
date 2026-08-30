@@ -1,0 +1,26 @@
+[MD013]
+# Prose wraps where the author put it; the rendered page is what matters.
+enabled = false
+
+[MD033]
+# README uses <details> for collapsible sections, which markdown has no syntax for.
+enabled = false
+
+[MD057]
+# Links to source are written relative to the repo root, which is where the editor
+# and GitHub resolve them from. rumdl resolves them relative to the file, so every
+# `src/...` citation in docs/ reads as broken. The convention is deliberate.
+enabled = false
+
+[global]
+exclude = [
+  # A one-line @-include, not a document.
+  "CLAUDE.md",
+  # Vendored reference dump of the Confluence storage format: Atlassian's own
+  # markup, headerless pipe tables and all.
+  "docs/storage.md",
+]
+
+[MD060]
+enabled = true
+style = "aligned"

@@ -15,40 +15,40 @@ import java.net.URI;
 
 public class AdminServlet extends HttpServlet {
 
-    private final LoginUriProvider loginUriProvider;
-    private final TemplateRenderer renderer;
-    private final PermissionManager permissionManager;
+  private final LoginUriProvider loginUriProvider;
+  private final TemplateRenderer renderer;
+  private final PermissionManager permissionManager;
 
-    @Inject
-    public AdminServlet(
-            @ComponentImport LoginUriProvider loginUriProvider,
-            @ComponentImport TemplateRenderer renderer,
-            @ComponentImport PermissionManager permissionManager) {
-        this.loginUriProvider = loginUriProvider;
-        this.renderer = renderer;
-        this.permissionManager = permissionManager;
-    }
+  @Inject
+  public AdminServlet(
+      @ComponentImport LoginUriProvider loginUriProvider,
+      @ComponentImport TemplateRenderer renderer,
+      @ComponentImport PermissionManager permissionManager) {
+    this.loginUriProvider = loginUriProvider;
+    this.renderer = renderer;
+    this.permissionManager = permissionManager;
+  }
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        ConfluenceUser user = AuthenticatedUserThreadLocal.get();
-        if (user == null) {
-            resp.sendRedirect(loginUriProvider.getLoginUri(getUri(req)).toASCIIString());
-            return;
-        }
-        if (!permissionManager.isConfluenceAdministrator(user)) {
-            resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Confluence admin access required");
-            return;
-        }
-        resp.setContentType("text/html;charset=utf-8");
-        renderer.render("templates/admin.vm", resp.getWriter());
+  @Override
+  protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    ConfluenceUser user = AuthenticatedUserThreadLocal.get();
+    if (user == null) {
+      resp.sendRedirect(loginUriProvider.getLoginUri(getUri(req)).toASCIIString());
+      return;
     }
+    if (!permissionManager.isConfluenceAdministrator(user)) {
+      resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Confluence admin access required");
+      return;
+    }
+    resp.setContentType("text/html;charset=utf-8");
+    renderer.render("templates/admin.vm", resp.getWriter());
+  }
 
-    private URI getUri(HttpServletRequest req) {
-        StringBuffer buf = req.getRequestURL();
-        if (req.getQueryString() != null) {
-            buf.append("?").append(req.getQueryString());
-        }
-        return URI.create(buf.toString());
+  private URI getUri(HttpServletRequest req) {
+    StringBuffer buf = req.getRequestURL();
+    if (req.getQueryString() != null) {
+      buf.append("?").append(req.getQueryString());
     }
+    return URI.create(buf.toString());
+  }
 }

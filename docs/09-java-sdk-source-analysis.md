@@ -4,7 +4,7 @@ Source: `.upstream/java-sdk/` (version 2.0.0-SNAPSHOT)
 
 ## Project Structure
 
-```
+```text
 java-sdk/
 ├── pom.xml                 # Parent POM (Java 17, jakarta.servlet 6.1.0)
 ├── mcp-bom/                # Bill of Materials
@@ -33,12 +33,12 @@ java-sdk/
 
 ## Key Requirements
 
-| Requirement | Version |
-|---|---|
-| Java | 17+ |
-| Jakarta Servlet | 6.1.0 (provided scope) |
-| Reactor Core | Used internally for async |
-| Jackson | 2.x or 3.x (via mapper modules) |
+| Requirement     | Version                         |
+| --------------- | ------------------------------- |
+| Java            | 17+                             |
+| Jakarta Servlet | 6.1.0 (provided scope)          |
+| Reactor Core    | Used internally for async       |
+| Jackson         | 2.x or 3.x (via mapper modules) |
 
 ## Confirmed: Jakarta Servlet
 
@@ -52,6 +52,7 @@ import jakarta.servlet.http.HttpServletResponse;
 ```
 
 Dependency in `mcp-core/pom.xml`:
+
 ```xml
 <dependency>
     <groupId>jakarta.servlet</groupId>
@@ -79,11 +80,11 @@ HttpServletStreamableServerTransportProvider.builder()
 
 ### HTTP Methods
 
-| Method | Purpose |
-|---|---|
-| `doPost()` | Handle JSON-RPC requests from client |
-| `doGet()` | Establish SSE stream for server-push |
-| `doDelete()` | Terminate MCP session |
+| Method       | Purpose                              |
+| ------------ | ------------------------------------ |
+| `doPost()`   | Handle JSON-RPC requests from client |
+| `doGet()`    | Establish SSE stream for server-push |
+| `doDelete()` | Terminate MCP session                |
 
 ### Session Management
 
@@ -159,6 +160,7 @@ public record Tool(
 ```
 
 Builder:
+
 ```java
 Tool.builder()
     .name("search")
@@ -186,6 +188,7 @@ public record CallToolResult(
 ```
 
 Builder:
+
 ```java
 CallToolResult.builder()
     .content(List.of(new TextContent("Results: ...")))
@@ -246,6 +249,7 @@ McpServerFeatures.AsyncToolSpecification.builder()
 ### Exchange Object
 
 The `exchange` parameter provides:
+
 - `getClientCapabilities()` - What the client supports
 - `getClientInfo()` - Client name/version
 - `loggingNotification()` - Send log messages to client
@@ -289,6 +293,7 @@ McpSyncServer server = McpServer.sync(transport)
 ### OSGi Considerations
 
 The main risk is **dependency conflicts** in Jira's OSGi container:
+
 - **Jackson**: Jira bundles its own Jackson. The MCP SDK needs Jackson 2.x or 3.x.
   If versions conflict, use the `mcp-core` module + `mcp-json-jackson2` to match
   Jira's bundled Jackson version.
@@ -302,6 +307,7 @@ for protocol correctness but implement the servlet transport manually.
 ## Jackson Version Considerations
 
 The SDK provides two JSON mapper modules:
+
 - `mcp-json-jackson2` — for Jackson 2.x (what Jira likely bundles)
 - `mcp-json-jackson3` — for Jackson 3.x
 
@@ -309,12 +315,12 @@ Using `mcp-core` + `mcp-json-jackson2` minimizes dependency conflicts with Jira.
 
 ## Key Files for Reference
 
-| File | Purpose |
-|---|---|
-| `mcp-core/.../McpSchema.java` | All protocol types (Tool, CallToolResult, etc.) |
-| `mcp-core/.../McpServer.java` | Server builder API |
-| `mcp-core/.../McpServerFeatures.java` | Tool/Resource specification records |
-| `mcp-core/.../HttpServletStreamableServerTransportProvider.java` | Servlet transport |
-| `mcp-core/.../McpServerSession.java` | Session management |
-| `mcp-core/pom.xml` | Core dependencies |
-| `pom.xml` | Root POM with version properties |
+| File                                                             | Purpose                                         |
+| ---------------------------------------------------------------- | ----------------------------------------------- |
+| `mcp-core/.../McpSchema.java`                                    | All protocol types (Tool, CallToolResult, etc.) |
+| `mcp-core/.../McpServer.java`                                    | Server builder API                              |
+| `mcp-core/.../McpServerFeatures.java`                            | Tool/Resource specification records             |
+| `mcp-core/.../HttpServletStreamableServerTransportProvider.java` | Servlet transport                               |
+| `mcp-core/.../McpServerSession.java`                             | Session management                              |
+| `mcp-core/pom.xml`                                               | Core dependencies                               |
+| `pom.xml`                                                        | Root POM with version properties                |

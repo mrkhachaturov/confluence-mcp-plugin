@@ -1,0 +1,84 @@
+amends "package://github.com/jdx/hk/releases/download/v1.56.0/hk@1.56.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.0/hk@1.56.0#/Builtins.pkl"
+
+local vendored = List(
+  ".upstream/**",
+  "target/**"
+)
+
+local lockfiles = List(
+  "mise.lock",
+  "**/package-lock.json"
+)
+
+local hygiene = new Mapping<String, Step> {
+  ["detect-private-key"] = Builtins.detect_private_key
+  ["check-merge-conflict"] = (Builtins.check_merge_conflict) { exclude = vendored }
+  ["check-added-large-files"] = (Builtins.check_added_large_files) { exclude = vendored + lockfiles }
+  ["check-case-conflict"] = Builtins.check_case_conflict
+  ["check-symlinks"] = Builtins.check_symlinks
+  ["trailing-whitespace"] = (Builtins.trailing_whitespace) { exclude = vendored }
+  ["end-of-file"] = (Builtins.newlines) { exclude = vendored }
+  ["mixed-line-ending"] = (Builtins.mixed_line_ending) { exclude = vendored }
+}
+
+hooks {
+  // Pre-commit judges only what the branch introduces; gating every commit on the
+  // whole repo's lint debt just teaches people to pass --no-verify. `hk run check`
+  // judges everything.
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["no-commit-to-main"] = Builtins.no_commit_to_branch
+      ...hygiene
+      ["java-format"] = new Step {
+        glob = List("**/*.java")
+        fix = "flint run --fix --allow-fixed google-java-format"
+      }
+      ["java-lint"] = new Step {
+        glob = List("**/*.java")
+        check = "flint run checkstyle"
+      }
+      ["new-issues"] = new Step {
+        check = "flint run --new-from-rev origin/main"
+        exclusive = true
+      }
+    }
+  }
+
+  ["commit-msg"] {
+    steps {
+      // git writes its own "Merge branch ..." subject, which no convention covers.
+      ["conventional-commit"] = new Step {
+        check = "d=$(git rev-parse --git-dir); test -f \"$d/MERGE_HEAD\""
+          + " || hk util check-conventional-commit \"$d/COMMIT_EDITMSG\""
+      }
+    }
+  }
+
+  ["check"] {
+    steps {
+      ...hygiene
+      ["tests"] = new Step {
+        check = "atlas-mvn -o test -Dtest='!*E2E*'"
+        exclusive = true
+      }
+      ["lint"] = new Step {
+        check = "flint run --full"
+        exclusive = true
+      }
+    }
+  }
+
+  ["fix"] {
+    fix = true
+    steps {
+      ...hygiene
+      ["flint"] = new Step {
+        fix = "flint run --full --fix --allow-fixed"
+        exclusive = true
+      }
+    }
+  }
+}

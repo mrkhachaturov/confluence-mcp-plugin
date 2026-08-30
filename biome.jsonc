@@ -1,0 +1,13 @@
+{
+  "files": {
+    "includes": [
+      "**",
+      // Atlassian's published API description, vendored verbatim as reference.
+      "!docs/9.0.0.swagger.v3.json"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  }
+}

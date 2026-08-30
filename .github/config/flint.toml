@@ -1,0 +1,16 @@
+[settings]
+exclude = [
+  ".upstream/**",
+  "target/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  # Installed by the agent harness, not authored here.
+  ".claude/**",
+  ".agents/**",
+  # Vendored verbatim: Atlassian's published API description.
+  "docs/9.0.0.swagger.v3.json",
+  "**/package-lock.json",
+]
+
+[checks.google-java-format]
+patterns = ["src/**/*.java"]

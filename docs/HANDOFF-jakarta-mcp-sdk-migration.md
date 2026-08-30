@@ -36,15 +36,17 @@ Platform foundation only — **no tool/runtime code changed yet**. `pom.xml`:
   `scope=import`). This is the version `confluence-project:10.2.11` itself uses.
 - Dropped hardcoded `<version>` from provided platform deps — now resolved by the BOM to
   exactly what Confluence 10.2.11 ships:
-  | dep | resolved |
-  |---|---|
-  | `atlassian-annotations` | 5.1.5 |
-  | `sal-api` | 7.0.4 |
-  | `atlassian-template-renderer-api` | 7.0.6 |
-  | `atlassian-plugins-api` | 9.1.4 |
-  | `jackson-databind` | 2.21.2 |
+
+  | dep                                            | resolved                          |
+  | ---------------------------------------------- | --------------------------------- |
+  | `atlassian-annotations`                        | 5.1.5                             |
+  | `sal-api`                                      | 7.0.4                             |
+  | `atlassian-template-renderer-api`              | 7.0.6                             |
+  | `atlassian-plugins-api`                        | 9.1.4                             |
+  | `jackson-databind`                             | 2.21.2                            |
   | `jakarta.servlet-api / ws.rs-api / inject-api` | 6.0.0 / 3.1.0 / 2.0.1 (unchanged) |
-  | `atlassian-spring-scanner-annotation` | 6.0.2 |
+  | `atlassian-spring-scanner-annotation`          | 6.0.2                             |
+
 - Switched legacy `atlassian-rest-common` → **`atlassian-rest-v2-api`** (BOM-managed 9.1.4,
   matches Jira; our code references no `com.atlassian.plugins.rest` types directly).
 - Removed `javax.servlet-api` (source has **0** `javax` imports).
@@ -55,11 +57,14 @@ Platform foundation only — **no tool/runtime code changed yet**. `pom.xml`:
 **Verification:** `atlas-mvn clean package` → **BUILD SUCCESS**.
 
 ### Build note (important for any session)
+
 `atlas-mvn` needs Java on PATH. In a non-interactive shell the mise shims may not be
 active — set:
+
 ```bash
 export JAVA_HOME="$(mise where java)"   # Temurin 21
 ```
+
 Then `just build` / `atlas-mvn ...` work. Env vars (`.credentials/confluence.env`) are
 auto-loaded by mise from `.mise.toml`.
 
@@ -90,11 +95,13 @@ dual-review → implementation plan), then incremental code commits.** Do NOT fl
 at once.
 
 ### Step 0 — Design spec + implementation plan (do this next)
+
 Write a design spec and step-by-step plan in `docs/` for the SDK migration, then run it
 through Codex dual-review (`/dual-review`), exactly as Jira did. Base it on the Jira docs
 (see references) — the platform is identical, so most of it transfers.
 
 ### Steps 1–6 — Code (each a separate commit on THIS branch)
+
 Reconstructed from the Jira commit history (branch `feature/jakarta-jira-11`):
 
 1. **Add MCP SDK deps + OSGi embedding.**
@@ -129,6 +136,7 @@ Reconstructed from the Jira commit history (branch `feature/jakarta-jira-11`):
    `just e2e` against the live 10.2.11 instance is the acceptance gate.
 
 ### Optional / later (Jira's v1.4.0 spec-compliance sprint)
+
 Capabilities fix (drop false `listChanged`, declare `logging`/`completions`), tool
 annotations, icon + outputSchema, resource templates, OAuth metadata (OIDC discovery,
 CIMD), `RateLimit-*` headers, `WWW-Authenticate` scope challenges, MCP Apps widget.

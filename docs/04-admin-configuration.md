@@ -3,6 +3,7 @@
 ## Overview
 
 Jira DC plugins can add admin configuration pages using a combination of:
+
 - A **servlet** to render the admin page (Velocity template)
 - A **REST endpoint** to load/save configuration (AJAX)
 - A **web-item** to add a link in the Jira admin menu
@@ -326,12 +327,12 @@ mcp.admin.save=Save
 
 ## Admin Menu Locations
 
-| Section | Location | Description |
-|---|---|---|
-| `system.admin/globalsettings` | Jira Admin > System | General system settings |
-| `system.admin/security` | Jira Admin > Security | Security settings |
-| `system.admin/advanced` | Jira Admin > Advanced | Advanced settings |
-| `system.admin/mail` | Jira Admin > Mail | Email settings |
+| Section                       | Location              | Description             |
+| ----------------------------- | --------------------- | ----------------------- |
+| `system.admin/globalsettings` | Jira Admin > System   | General system settings |
+| `system.admin/security`       | Jira Admin > Security | Security settings       |
+| `system.admin/advanced`       | Jira Admin > Advanced | Advanced settings       |
+| `system.admin/mail`           | Jira Admin > Mail     | Email settings          |
 
 ## Maven Dependencies for Admin
 
@@ -351,5 +352,5 @@ mcp.admin.save=Save
 
 ## References
 
-- Creating Admin Config Form: https://developer.atlassian.com/server/framework/atlassian-sdk/creating-an-admin-configuration-form/
-- SAL Code Samples: https://developer.atlassian.com/server/framework/atlassian-sdk/sal-code-samples/
+- Creating Admin Config Form: <https://developer.atlassian.com/server/framework/atlassian-sdk/creating-an-admin-configuration-form/>
+- SAL Code Samples: <https://developer.atlassian.com/server/framework/atlassian-sdk/sal-code-samples/>

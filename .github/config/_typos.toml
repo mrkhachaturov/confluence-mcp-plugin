@@ -1,0 +1,17 @@
+[files]
+# Atlassian's published API description, vendored verbatim as reference; it carries
+# misspellings of its own in enum values and descriptions.
+extend-exclude = ["**/*swagger*.json", "**/confluence-openapi.json"]
+
+[default.extend-words]
+# Java abbreviations the codebase already uses for the types they name.
+anc = "anc"
+bais = "bais"
+
+[default]
+extend-ignore-re = [
+  # Base64 payloads (inline icon data URIs) are noise to a spell checker.
+  "\"[A-Za-z0-9+/]{40,}={0,2}\"",
+  # Git SHAs quoted in the docs — hex, not prose.
+  "`[0-9a-f]{7,40}`",
+]

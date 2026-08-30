@@ -15,6 +15,7 @@
 **Deploy:** Upload JAR via UPM REST API (version bump required for CSS/JS cache busting)
 
 **Important conventions (from CLAUDE.md):**
+
 - Always use `javax.*` imports, never `jakarta.*`
 - Plugin key is `com.atlassian.mcp.atlassian-mcp-plugin`
 - Use Jackson `ObjectMapper` for JSON parsing (already on classpath via `com.fasterxml.jackson`)
@@ -41,7 +42,7 @@
 
 ## OAuth Flow (detailed)
 
-```
+```text
 Claude Code                     Our Plugin                          Jira OAuth
     |                               |                                   |
     |-- POST /rest/mcp/1.0/ ------>|                                   |
@@ -93,17 +94,17 @@ Claude Code                     Our Plugin                          Jira OAuth
 
 ## File Structure
 
-| File | Responsibility |
-|------|---------------|
-| `rest/OAuthResource.java` | **NEW** — OAuth proxy endpoints: metadata, register, authorize, callback, token |
+| File                               | Responsibility                                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `rest/OAuthResource.java`          | **NEW** — OAuth proxy endpoints: metadata, register, authorize, callback, token                 |
 | `rest/OAuthWellKnownResource.java` | **NEW** — `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server` |
-| `config/McpPluginConfig.java` | **MODIFY** — Add OAuth client_id and client_secret settings |
-| `config/OAuthStateStore.java` | **NEW** — In-memory store for pending auth states and proxy codes |
-| `rest/McpResource.java` | **MODIFY** — Return 401 with RFC 9728 `WWW-Authenticate` header |
-| `admin/ConfigResource.java` | **MODIFY** — Expose OAuth config in GET/PUT |
-| `atlassian-plugin.xml` | **MODIFY** — Register well-known servlet for `/.well-known/*` paths |
-| `templates/admin.vm` | **MODIFY** — Add OAuth tab to admin UI |
-| `js/admin.js` | **MODIFY** — OAuth config fields in admin JS |
+| `config/McpPluginConfig.java`      | **MODIFY** — Add OAuth client_id and client_secret settings                                     |
+| `config/OAuthStateStore.java`      | **NEW** — In-memory store for pending auth states and proxy codes                               |
+| `rest/McpResource.java`            | **MODIFY** — Return 401 with RFC 9728 `WWW-Authenticate` header                                 |
+| `admin/ConfigResource.java`        | **MODIFY** — Expose OAuth config in GET/PUT                                                     |
+| `atlassian-plugin.xml`             | **MODIFY** — Register well-known servlet for `/.well-known/*` paths                             |
+| `templates/admin.vm`               | **MODIFY** — Add OAuth tab to admin UI                                                          |
+| `js/admin.js`                      | **MODIFY** — OAuth config fields in admin JS                                                    |
 
 ## Pre-implementation: Verify Jira OAuth Bearer → getRemoteUser()
 
@@ -126,9 +127,11 @@ If it returns 401, we need to add explicit token validation using Jira's `com.at
 ### Task 1: OAuth State Store
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/config/OAuthStateStore.java`
 
 This stores three types of short-lived data:
+
 1. **Pending authorizations** — maps our internal state → client's redirect_uri + state + code_challenge + client_id
 2. **Proxy codes** — maps our proxy authorization code → Jira access token + bound client_id + redirect_uri
 3. **Registered clients** — maps proxy client_id → client metadata (redirect_uris)
@@ -299,6 +302,7 @@ git commit -m "feat: add OAuth state store with PKCE verification"
 ### Task 2: OAuth Plugin Config
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/config/McpPluginConfig.java`
 
 Add OAuth client_id and client_secret to PluginSettings. The callback URL is always derived as `${baseUrl}/rest/mcp/1.0/oauth/callback` — not configurable.
@@ -351,6 +355,7 @@ git commit -m "feat: add OAuth client_id/secret to plugin config"
 ### Task 3: OAuth Metadata Endpoints
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/rest/OAuthResource.java` (will be created in Task 4)
 
 Jira servlet modules serve under `/plugins/servlet/`, NOT arbitrary paths. JAX-RS `@Path` doesn't support dots. So we serve metadata from clean JAX-RS paths under `/oauth/`:
@@ -365,6 +370,7 @@ The `WWW-Authenticate` header in Task 6 and the `authorization_servers` field bo
 - [ ] **Step 1: Design metadata responses**
 
 Protected Resource Metadata (`GET /rest/mcp/1.0/oauth/protected-resource`):
+
 ```json
 {
     "resource": "https://bpm.astrateam.net/rest/mcp/1.0/",
@@ -373,6 +379,7 @@ Protected Resource Metadata (`GET /rest/mcp/1.0/oauth/protected-resource`):
 ```
 
 Authorization Server Metadata (`GET /rest/mcp/1.0/oauth/metadata`):
+
 ```json
 {
     "issuer": "https://bpm.astrateam.net/rest/mcp/1.0/oauth",
@@ -396,6 +403,7 @@ The key consistency rule: `authorization_servers[0]` == `issuer` == `{baseUrl}/r
 ### Task 4: OAuth Authorize + Callback Endpoints
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/rest/OAuthResource.java`
 
 This class handles `/oauth/authorize` and `/oauth/callback`. It goes in the existing `com.atlassian.mcp.plugin.rest` package alongside `McpResource` — no new `<rest>` module needed, they share the same `/rest/mcp/1.0/` base path.
@@ -589,6 +597,7 @@ git commit -m "feat: add OAuth authorize and callback endpoints"
 ### Task 5: OAuth Token + Register Endpoints
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/rest/OAuthResource.java`
 
 Add `/oauth/token` and `/oauth/register` to the existing OAuthResource.
@@ -694,6 +703,7 @@ git commit -m "feat: add OAuth token endpoint with PKCE and register endpoint"
 ### Task 6: Update McpResource 401 Response
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/rest/McpResource.java`
 
 Return RFC 9728 compliant `WWW-Authenticate` header when OAuth is enabled and no auth is provided.
@@ -764,10 +774,10 @@ git commit -m "feat: return RFC 9728 WWW-Authenticate with resource_metadata on 
 ### Task 7: Admin UI — OAuth Config Tab
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/admin/ConfigResource.java`
 - Modify: `src/main/resources/templates/admin.vm`
 - Modify: `src/main/resources/js/admin.js`
-
 - [ ] **Step 1: Add OAuth fields to ConfigResource GET/PUT**
 
 In the GET handler, add after `result.put("jiraBaseUrl", ...)`:
@@ -890,9 +900,9 @@ git commit -m "feat: add OAuth tab to admin UI with client_id/secret config"
 ### Task 8: Version Bump, Deploy & End-to-End Test
 
 **Files:**
+
 - Modify: `pom.xml` — bump to `1.0.2-SNAPSHOT`
 - Modify: `CHANGELOG.md`
-
 - [ ] **Step 1: Bump version in pom.xml**
 
 Change version to `1.0.2-SNAPSHOT`.
@@ -925,6 +935,7 @@ Upload `target/atlassian-mcp-plugin-1.0.2-SNAPSHOT.jar` via UPM.
 - [ ] **Step 4: Configure Application Link**
 
 In Jira Admin → Application Links → Create Link → External Application → Incoming:
+
 1. Name: `MCP Server`
 2. Redirect URL: `https://bpm.astrateam.net/rest/mcp/1.0/oauth/callback`
 3. Permission: Write
@@ -933,6 +944,7 @@ In Jira Admin → Application Links → Create Link → External Application →
 - [ ] **Step 5: Configure plugin OAuth tab**
 
 In MCP Admin → OAuth tab:
+
 1. Paste Client ID
 2. Paste Client Secret
 3. Save
@@ -954,6 +966,7 @@ Configure Claude Code / Cursor:
 ```
 
 Expected flow:
+
 1. "Needs Auth" appears → click "Authenticate"
 2. Browser opens to Jira consent page ("MCP Server would like to access your Jira account")
 3. Click "Allow"

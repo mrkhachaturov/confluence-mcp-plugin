@@ -34,6 +34,7 @@ The agreed scope is **"SDK migration + MCP spec compliance, minus UI widgets and
 ### In scope
 
 **Core swap (the transport replacement):**
+
 - Add the MCP SDK dependencies and embed them via OSGi.
 - New `McpBootstrap` builds the SDK transport + `McpSyncServer`.
 - New `McpTransportFilter` mounts the transport as an async servlet-filter at `/plugins/servlet/mcp`.
@@ -44,6 +45,7 @@ The agreed scope is **"SDK migration + MCP spec compliance, minus UI widgets and
 - Rewrite the e2e suite against the SDK sync client.
 
 **Spec-compliance items folded in (final form from the start — see §2):**
+
 - **SDK `2.0.0-M3` with builder APIs** (not M2 canonical constructors).
 - **Correct server capabilities:** `tools(false)`, `logging`. No false `listChanged`. No `resources` and no `completions` capability (we expose neither — see "Out of scope").
 - **Server identity:** full `Implementation` builder — title, description, websiteUrl, icon — plus model-facing `instructions`. Confluence-authored text and logo.
@@ -85,20 +87,20 @@ This is a real divergence from Jira: Jira does **not** route `/plugins/servlet/m
 
 The platform BOM is shared (`platform-public-api:8.3.16`), but product APIs differ. Each mechanism below was checked against the Confluence source and the Confluence 10.2.11 framework jars before being written into this design.
 
-| # | Mechanism | Verdict | Confluence approach |
-|---|-----------|---------|---------------------|
-| 1 | Async servlet-filter | **Same** (verified by bytecode) | `ServletFilterModuleDescriptor.getDefaultAsyncSupported()` in `atlassian-plugins-servlet-9.0.0-m002` reads `Boolean.getBoolean("atlassian.plugins.filter.async.default")`. Mirror Jira's `McpTransportFilter`; same JVM flag. |
-| 2 | Auth context | **Different** | `AuthenticatedUserThreadLocal.get()` → `ConfluenceUser`; `user.getKey().getStringValue()`, `user.getName()`. Not SAL `UserManager`. |
-| 3 | Group membership | **Same** | `UserAccessor.hasMembership(group, username)` — already used by the current plugin. |
-| 4 | Base URL | **Same** | SAL `ApplicationProperties.getBaseUrl()` with the `confluenceBaseUrl` override. |
-| 5 | Completions target | **Different — deferred** | Completions are out of scope (§3). When added later: spaces, not projects — list via `/rest/api/space`, key field `key`, on a `confluence://space/{spaceKey}` template. |
-| 6 | OAuth discovery | **Different (add)** | Current `OAuthServlet` is structurally parallel to Jira's (same `/metadata`, `/protected-resource`, `/register`, `/authorize`, `/token`, `/callback`, same `OAuthStateStore`, PKCE, base-URL logic) but lacks OIDC + CIMD. Port them in. |
-| 7 | Jackson / OSGi | **Same** | BOM resolves `jackson-databind` to 2.21.2. Exclude `jackson-dataformat-yaml` from `mcp-json-jackson2` to avoid version skew (the SDK pulls 2.18.3). Note: Confluence has no BannedDependencies enforcer, so this is skew-avoidance, not an enforcer fix. |
-| 8 | Overall architecture | **Different (this is the work)** | Confluence does origin/auth/rate-limit/body-size/headers **inline** in `McpResource` and has no `McpBootstrap`. The swap relocates these into `McpBootstrap` + the filter chain. |
+| #   | Mechanism            | Verdict                          | Confluence approach                                                                                                                                                                                                                                      |
+| --- | -------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Async servlet-filter | **Same** (verified by bytecode)  | `ServletFilterModuleDescriptor.getDefaultAsyncSupported()` in `atlassian-plugins-servlet-9.0.0-m002` reads `Boolean.getBoolean("atlassian.plugins.filter.async.default")`. Mirror Jira's `McpTransportFilter`; same JVM flag.                            |
+| 2   | Auth context         | **Different**                    | `AuthenticatedUserThreadLocal.get()` → `ConfluenceUser`; `user.getKey().getStringValue()`, `user.getName()`. Not SAL `UserManager`.                                                                                                                      |
+| 3   | Group membership     | **Same**                         | `UserAccessor.hasMembership(group, username)` — already used by the current plugin.                                                                                                                                                                      |
+| 4   | Base URL             | **Same**                         | SAL `ApplicationProperties.getBaseUrl()` with the `confluenceBaseUrl` override.                                                                                                                                                                          |
+| 5   | Completions target   | **Different — deferred**         | Completions are out of scope (§3). When added later: spaces, not projects — list via `/rest/api/space`, key field `key`, on a `confluence://space/{spaceKey}` template.                                                                                  |
+| 6   | OAuth discovery      | **Different (add)**              | Current `OAuthServlet` is structurally parallel to Jira's (same `/metadata`, `/protected-resource`, `/register`, `/authorize`, `/token`, `/callback`, same `OAuthStateStore`, PKCE, base-URL logic) but lacks OIDC + CIMD. Port them in.                 |
+| 7   | Jackson / OSGi       | **Same**                         | BOM resolves `jackson-databind` to 2.21.2. Exclude `jackson-dataformat-yaml` from `mcp-json-jackson2` to avoid version skew (the SDK pulls 2.18.3). Note: Confluence has no BannedDependencies enforcer, so this is skew-avoidance, not an enforcer fix. |
+| 8   | Overall architecture | **Different (this is the work)** | Confluence does origin/auth/rate-limit/body-size/headers **inline** in `McpResource` and has no `McpBootstrap`. The swap relocates these into `McpBootstrap` + the filter chain.                                                                         |
 
 ### Verification evidence for #1 (the critical de-risk)
 
-```
+```text
 javap com.atlassian.plugin.servlet.descriptors.ServletFilterModuleDescriptor
   → static final String ASYNC_DEFAULT_SYSPROP;
   → protected boolean getDefaultAsyncSupported();           // reads ASYNC_DEFAULT
@@ -118,7 +120,7 @@ Jar: `~/.m2/.../atlassian-plugins-servlet/9.0.0-m002` — the framework Confluen
 
 `McpBootstrap` (a `@Named` component, lazily building the transport on first init) constructs:
 
-```
+```text
 ObjectMapper          → JacksonMcpJsonMapper, DefaultJsonSchemaValidator
 HttpServletStreamableServerTransportProvider.builder()
     .jsonMapper(...)
@@ -146,7 +148,7 @@ Origin checking moves straight to the SDK's `DefaultServerTransportSecurityValid
 
 The concerns currently inline in `McpResource` become discrete `<servlet-filter>` modules, ascending by weight, all scoped to `/plugins/servlet/mcp`. Origin is handled by the SDK validator inside the transport, so it is not a filter:
 
-```
+```text
 BodySizeLimit(200) → RateLimit(300) → AccessControl(400) → SessionBinding(500) → SecurityHeaders(550) → Transport(600)
 ```
 
@@ -170,6 +172,7 @@ Helpers `BufferedRequestWrapper` and `CapturingResponseWrapper` are ported from 
 - `executeWithSdkProgress(args, authHeader, exchange, progressToken)` → defaults to `execute(args, authHeader)`
 
 `McpToolAdapter.adapt(tool)` builds a `SyncToolSpecification`:
+
 - `ToolAnnotations.builder().title().readOnlyHint(!isWriteTool).destructiveHint().idempotentHint().openWorldHint()`
 - `Tool.builder().name().title().description().inputSchema(withSchemaDialect(tool.inputSchema())).annotations(...)`
 - `withSchemaDialect()` injects `"$schema": "https://json-schema.org/draft/2020-12/schema"` when absent.
@@ -182,6 +185,7 @@ No `outputSchema` / `structuredContent` — that is the deferred widget data lay
 ### 6.5 OAuth discovery additions
 
 The existing `OAuthServlet` and `OAuthAnonymousFilter` keep their structure. We add, mirroring Jira:
+
 - **OpenID Connect Discovery** — the metadata (issuer, authorization/token/registration endpoints, supported response types / PKCE methods / grant types / scopes, `client_id_metadata_document_supported: true`). The plugin does not issue ID tokens; this advertises the same authorization server. It must be reachable at **both** public URLs clients probe:
   - `/.well-known/openid-configuration` — served directly by the `before-login` `OAuthAnonymousFilter` (servlets cannot serve at the context root), exactly as the existing `/.well-known/oauth-*` paths are. The filter's matching must include `openid-configuration`, not just the `oauth-` prefix.
   - `/plugins/servlet/mcp-oauth/openid-configuration` — the servlet-local route.
@@ -206,11 +210,11 @@ The existing `OAuthServlet` and `OAuthAnonymousFilter` keep their structure. We 
 
 ## 7. What gets deleted
 
-| Deleted | Replaced by |
-|---------|-------------|
-| `JsonRpcHandler.java` | SDK `McpSyncServer` dispatch |
-| `McpResource.java` (POST/GET/DELETE, session map, SSE, inline origin/auth/rate/body/header/protocol logic) | SDK streamable transport + the filter chain + SDK security validator |
-| `<rest key="mcp-rest" path="/mcp">` module | `<servlet-filter key="mcp-transport-filter">` at `/plugins/servlet/mcp` |
+| Deleted                                                                                                    | Replaced by                                                             |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `JsonRpcHandler.java`                                                                                      | SDK `McpSyncServer` dispatch                                            |
+| `McpResource.java` (POST/GET/DELETE, session map, SSE, inline origin/auth/rate/body/header/protocol logic) | SDK streamable transport + the filter chain + SDK security validator    |
+| `<rest key="mcp-rest" path="/mcp">` module                                                                 | `<servlet-filter key="mcp-transport-filter">` at `/plugins/servlet/mcp` |
 
 ---
 

@@ -1,0 +1,17 @@
+[settings]
+exclude = [
+  ".upstream/**",
+  "target/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  # Installed by the agent harness, not authored here.
+  ".claude/**",
+  ".agents/**",
+  # Vendored verbatim: Atlassian's published API descriptions.
+  "docs/9.0.0.swagger.v3.json",
+  "src/test/resources/confluence-openapi.json",
+  "**/package-lock.json",
+]
+
+[checks.google-java-format]
+patterns = ["src/**/*.java"]

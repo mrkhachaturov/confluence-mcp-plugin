@@ -1,249 +1,345 @@
-(function ($) {
-    var url = AJS.contextPath() + "/rest/mcp-admin/1.0/";
-    var headers = { "X-Atlassian-Token": "no-check" };
-    var allToolsMeta = [];
-    var disabledSet = new Set();
-    var allowedUsers = [];
-    var allowedGroups = [];
+(($) => {
+  var url = `${AJS.contextPath()}/rest/mcp-admin/1.0/`;
+  var headers = { "X-Atlassian-Token": "no-check" };
+  var allToolsMeta = [];
+  var disabledSet = new Set();
+  var allowedUsers = [];
+  var allowedGroups = [];
 
-    // ==================== TOOLS ====================
+  // ==================== TOOLS ====================
 
-    function renderTools() {
-        var filter = ($("#mcp-tool-filter").val() || "").toLowerCase();
-        var $list = $("#mcp-tools-list").empty();
+  function renderTools() {
+    var filter = ($("#mcp-tool-filter").val() || "").toLowerCase();
+    var $list = $("#mcp-tools-list").empty();
 
-        if (allToolsMeta.length === 0) {
-            $list.append('<div style="padding:12px; color:#6b778c;">No tools registered.</div>');
-            return;
+    if (allToolsMeta.length === 0) {
+      $list.append(
+        '<div style="padding:12px; color:var(--ds-text-subtlest, #6b778c);">No tools registered.</div>',
+      );
+      return;
+    }
+
+    allToolsMeta.forEach((tool) => {
+      if (filter && tool.name.toLowerCase().indexOf(filter) < 0) return;
+      var isDisabled = disabledSet.has(tool.name);
+      var badge = tool.isWrite
+        ? '<span class="aui-lozenge aui-lozenge-moved" style="font-size:10px; margin-left:6px;">write</span>'
+        : "";
+      var cls = `mcp-tool-row${isDisabled ? " mcp-tool-disabled" : ""}`;
+      $list.append(
+        '<div class="' +
+          cls +
+          '" data-name="' +
+          esc(tool.name) +
+          '">' +
+          '<span class="mcp-tool-toggle">' +
+          (isDisabled ? "&#x2717;" : "&#x2713;") +
+          "</span> " +
+          '<span class="mcp-tool-label">' +
+          esc(tool.name) +
+          "</span>" +
+          badge +
+          '<span class="mcp-tool-desc">' +
+          esc(tool.description) +
+          "</span>" +
+          "</div>",
+      );
+    });
+  }
+
+  // ==================== TAG PICKER (reusable for users & groups) ====================
+
+  function renderTags(items, containerId, removeClass) {
+    var $c = $(`#${containerId}`).empty();
+    items.forEach((item, i) => {
+      $c.append(
+        '<span class="mcp-tag">' +
+          esc(item.label || item.value) +
+          ' <a href="#" class="' +
+          removeClass +
+          '" data-index="' +
+          i +
+          '">&times;</a>' +
+          "</span>",
+      );
+    });
+  }
+
+  function setupPicker(cfg) {
+    var timer = null;
+    $(`#${cfg.inputId}`).on("input", function () {
+      clearTimeout(timer);
+      var q = $(this).val().trim();
+      timer = setTimeout(() => {
+        if (!q || q.length < 2) {
+          $(`#${cfg.sugId}`).prop("hidden", true).empty();
+          return;
+        }
+        $.ajax({
+          url: AJS.contextPath() + cfg.searchUrl + encodeURIComponent(q),
+          dataType: "json",
+          headers: headers,
+        }).done((data) => {
+          var results = cfg.extractResults(data);
+          var $sug = $(`#${cfg.sugId}`).empty();
+          var existing = {};
+          cfg.items().forEach((it) => {
+            existing[it.value] = true;
+          });
+          results.forEach((r) => {
+            if (existing[r.value]) return;
+            $sug.append(
+              '<div class="mcp-suggestion" data-value="' +
+                esc(r.value) +
+                '" data-label="' +
+                esc(r.label) +
+                '">' +
+                esc(r.label) +
+                (r.extra
+                  ? ' <span style="color:var(--ds-text-subtlest, #6b778c);">(' +
+                    esc(r.extra) +
+                    ")</span>"
+                  : "") +
+                "</div>",
+            );
+          });
+          $sug.prop("hidden", $sug.children().length === 0);
+        });
+      }, 300);
+    });
+
+    $(document).on("click", `#${cfg.sugId} .mcp-suggestion`, function () {
+      cfg
+        .items()
+        .push({ value: $(this).data("value"), label: $(this).data("label") });
+      renderTags(cfg.items(), cfg.tagsId, cfg.removeClass);
+      $(`#${cfg.inputId}`).val("");
+      $(`#${cfg.sugId}`).prop("hidden", true).empty();
+    });
+
+    $(document).on("click", `.${cfg.removeClass}`, function (e) {
+      e.preventDefault();
+      cfg.items().splice($(this).data("index"), 1);
+      renderTags(cfg.items(), cfg.tagsId, cfg.removeClass);
+    });
+
+    $(`#${cfg.inputId}`).on("blur", () => {
+      setTimeout(() => {
+        $(`#${cfg.sugId}`).prop("hidden", true);
+      }, 200);
+    });
+  }
+
+  function esc(s) {
+    return s ? $("<span>").text(s).html() : "";
+  }
+
+  function updateAccessWarning() {
+    var $w = $("#mcp-access-warning");
+    if (!$w.length) return;
+    var allowAll = document.getElementById("allowAllAuthenticatedUsers");
+    if (allowAll?.checked) {
+      $w.html(
+        "⚠ Open access: ALL authenticated Confluence users can use the MCP server.",
+      ).prop("hidden", false);
+    } else if (allowedUsers.length === 0 && allowedGroups.length === 0) {
+      $w.html(
+        "No users or groups are allowed yet — the MCP server will deny everyone. " +
+          "Add a user/group above, or enable “allow all authenticated users”.",
+      ).prop("hidden", false);
+    } else {
+      $w.prop("hidden", true);
+    }
+  }
+
+  // ==================== INIT ====================
+
+  $(() => {
+    // Setup group picker
+    setupPicker({
+      inputId: "mcp-group-input",
+      sugId: "mcp-group-suggestions",
+      tagsId: "mcp-group-tags",
+      removeClass: "mcp-remove-group",
+      searchUrl: "/rest/mcp-admin/1.0/groups?q=",
+      items: () => allowedGroups,
+      extractResults: (data) =>
+        (data || []).map((g) => ({ value: g.value, label: g.label })),
+    });
+
+    // Setup user picker
+    setupPicker({
+      inputId: "mcp-user-input",
+      sugId: "mcp-user-suggestions",
+      tagsId: "mcp-user-tags",
+      removeClass: "mcp-remove-user",
+      searchUrl: "/rest/mcp-admin/1.0/users?q=",
+      items: () => allowedUsers,
+      extractResults: (data) =>
+        (data || []).map((u) => ({
+          value: u.value,
+          label: u.label,
+          extra: u.value,
+        })),
+    });
+
+    // Load config
+    $.ajax({ url: url, dataType: "json", headers: headers })
+      .done((config) => {
+        if (config.enabled) document.getElementById("enabled").checked = true;
+        if (config.readOnlyMode)
+          document.getElementById("readOnlyMode").checked = true;
+        if (config.allowAllAuthenticatedUsers)
+          document.getElementById("allowAllAuthenticatedUsers").checked = true;
+        $("#confluenceBaseUrl").val(config.confluenceBaseUrl || "");
+
+        allToolsMeta = config.allTools || [];
+        var ds = config.disabledTools || "";
+        if (ds)
+          ds.split(",").forEach((t) => {
+            t = t.trim();
+            if (t) disabledSet.add(t);
+          });
+        renderTools();
+
+        // Load groups
+        var gs = config.allowedGroups || "";
+        if (gs) {
+          gs.split(",").forEach((g) => {
+            g = g.trim();
+            if (g) allowedGroups.push({ value: g, label: g });
+          });
+          renderTags(allowedGroups, "mcp-group-tags", "mcp-remove-group");
         }
 
-        allToolsMeta.forEach(function (tool) {
-            if (filter && tool.name.toLowerCase().indexOf(filter) < 0) return;
-            var isDisabled = disabledSet.has(tool.name);
-            var badge = tool.isWrite ? '<span class="aui-lozenge aui-lozenge-moved" style="font-size:10px; margin-left:6px;">write</span>' : '';
-            var cls = "mcp-tool-row" + (isDisabled ? " mcp-tool-disabled" : "");
-            $list.append(
-                '<div class="' + cls + '" data-name="' + esc(tool.name) + '">'
-                + '<span class="mcp-tool-toggle">' + (isDisabled ? '&#x2717;' : '&#x2713;') + '</span> '
-                + '<span class="mcp-tool-label">' + esc(tool.name) + '</span>'
-                + badge
-                + '<span class="mcp-tool-desc">' + esc(tool.description) + '</span>'
-                + '</div>'
-            );
-        });
-    }
-
-    // ==================== TAG PICKER (reusable for users & groups) ====================
-
-    function renderTags(items, containerId, removeClass) {
-        var $c = $("#" + containerId).empty();
-        items.forEach(function (item, i) {
-            $c.append(
-                '<span class="mcp-tag">'
-                + esc(item.label || item.value)
-                + ' <a href="#" class="' + removeClass + '" data-index="' + i + '">&times;</a>'
-                + '</span>'
-            );
-        });
-    }
-
-    function setupPicker(cfg) {
-        var timer = null;
-        $("#" + cfg.inputId).on("input", function () {
-            clearTimeout(timer);
-            var q = $(this).val().trim();
-            timer = setTimeout(function () {
-                if (!q || q.length < 2) { $("#" + cfg.sugId).hide().empty(); return; }
-                $.ajax({
-                    url: AJS.contextPath() + cfg.searchUrl + encodeURIComponent(q),
-                    dataType: "json", headers: headers
-                }).done(function (data) {
-                    var results = cfg.extractResults(data);
-                    var $sug = $("#" + cfg.sugId).empty();
-                    var existing = {};
-                    cfg.items().forEach(function (it) { existing[it.value] = true; });
-                    results.forEach(function (r) {
-                        if (existing[r.value]) return;
-                        $sug.append(
-                            '<div class="mcp-suggestion" data-value="' + esc(r.value)
-                            + '" data-label="' + esc(r.label) + '">'
-                            + esc(r.label) + (r.extra ? ' <span style="color:var(--ds-text-subtlest, #6b778c);">(' + esc(r.extra) + ')</span>' : '')
-                            + '</div>'
-                        );
-                    });
-                    $sug.toggle($sug.children().length > 0);
-                });
-            }, 300);
-        });
-
-        $(document).on("click", "#" + cfg.sugId + " .mcp-suggestion", function () {
-            cfg.items().push({ value: $(this).data("value"), label: $(this).data("label") });
-            renderTags(cfg.items(), cfg.tagsId, cfg.removeClass);
-            $("#" + cfg.inputId).val("");
-            $("#" + cfg.sugId).hide().empty();
-        });
-
-        $(document).on("click", "." + cfg.removeClass, function (e) {
-            e.preventDefault();
-            cfg.items().splice($(this).data("index"), 1);
-            renderTags(cfg.items(), cfg.tagsId, cfg.removeClass);
-        });
-
-        $("#" + cfg.inputId).on("blur", function () {
-            setTimeout(function () { $("#" + cfg.sugId).hide(); }, 200);
-        });
-    }
-
-    function esc(s) { return s ? $("<span>").text(s).html() : ""; }
-
-    function updateAccessWarning() {
-        var $w = $("#mcp-access-warning");
-        if (!$w.length) return;
-        var allowAll = document.getElementById("allowAllAuthenticatedUsers");
-        if (allowAll && allowAll.checked) {
-            $w.html("⚠ Open access: ALL authenticated Confluence users can use the MCP server.").show();
-        } else if (allowedUsers.length === 0 && allowedGroups.length === 0) {
-            $w.html("No users or groups are allowed yet — the MCP server will deny everyone. "
-                + "Add a user/group above, or enable “allow all authenticated users”.").show();
-        } else {
-            $w.hide();
-        }
-    }
-
-    // ==================== INIT ====================
-
-    $(function () {
-        // Setup group picker
-        setupPicker({
-            inputId: "mcp-group-input",
-            sugId: "mcp-group-suggestions",
-            tagsId: "mcp-group-tags",
-            removeClass: "mcp-remove-group",
-            searchUrl: "/rest/mcp-admin/1.0/groups?q=",
-            items: function () { return allowedGroups; },
-            extractResults: function (data) {
-                return (data || []).map(function (g) {
-                    return { value: g.value, label: g.label };
-                });
-            }
-        });
-
-        // Setup user picker
-        setupPicker({
-            inputId: "mcp-user-input",
-            sugId: "mcp-user-suggestions",
-            tagsId: "mcp-user-tags",
-            removeClass: "mcp-remove-user",
-            searchUrl: "/rest/mcp-admin/1.0/users?q=",
-            items: function () { return allowedUsers; },
-            extractResults: function (data) {
-                return (data || []).map(function (u) {
-                    return { value: u.value, label: u.label, extra: u.value };
-                });
-            }
-        });
-
-        // Load config
-        $.ajax({ url: url, dataType: "json", headers: headers }).done(function (config) {
-            if (config.enabled) document.getElementById("enabled").checked = true;
-            if (config.readOnlyMode) document.getElementById("readOnlyMode").checked = true;
-            if (config.allowAllAuthenticatedUsers) document.getElementById("allowAllAuthenticatedUsers").checked = true;
-            $("#confluenceBaseUrl").val(config.confluenceBaseUrl || "");
-
-            allToolsMeta = config.allTools || [];
-            var ds = config.disabledTools || "";
-            if (ds) ds.split(",").forEach(function (t) { t = t.trim(); if (t) disabledSet.add(t); });
-            renderTools();
-
-            // Load groups
-            var gs = config.allowedGroups || "";
-            if (gs) {
-                gs.split(",").forEach(function (g) {
-                    g = g.trim();
-                    if (g) allowedGroups.push({ value: g, label: g });
-                });
-                renderTags(allowedGroups, "mcp-group-tags", "mcp-remove-group");
-            }
-
-            // Load users
-            var us = config.allowedUsers || "";
-            if (us) {
-                var keys = us.split(",").map(function (k) { return k.trim(); }).filter(Boolean);
-                var loaded = 0;
-                keys.forEach(function (key) {
-                    $.ajax({
-                        url: AJS.contextPath() + "/rest/api/user?username=" + encodeURIComponent(key),
-                        dataType: "json", headers: headers
-                    }).done(function (u) {
-                        allowedUsers.push({ value: u.name, label: u.displayName });
-                    }).fail(function () {
-                        allowedUsers.push({ value: key, label: key });
-                    }).always(function () {
-                        loaded++;
-                        if (loaded === keys.length) renderTags(allowedUsers, "mcp-user-tags", "mcp-remove-user");
-                    });
-                });
-            }
-            // OAuth
-            $("#oauthClientId").val(config.oauthClientId || "");
-            if (config.oauthClientSecretSet) {
-                $("#oauth-secret-status").text("Secret is configured.");
-            } else {
-                $("#oauth-secret-status").text("No secret configured yet.");
-            }
-            if (config.oauthEnabled) {
-                $("#oauth-status-group").show();
-                $("#oauth-status").html('<span class="aui-lozenge aui-lozenge-success">Active</span>');
-            }
-            var baseUrl = window.location.origin + AJS.contextPath();
-            var mcpUrl = baseUrl + "/plugins/servlet/mcp";
-            $("#oauth-callback-url").text(baseUrl + "/plugins/servlet/mcp-oauth/callback");
-            $("#oauth-mcp-config").text(JSON.stringify({
-                "mcpServers": {
-                    "confluence": { "type": "http", "url": mcpUrl }
-                }
-            }, null, 2));
-        }).fail(function (xhr) {
-            $("#mcp-tools-list").html('<div style="padding:12px; color:#de350b;">Failed to load config (HTTP ' + xhr.status + ').</div>');
-        });
-
-        // Access-scope warning reflects the allowlist + open-access toggle
-        $("#allowAllAuthenticatedUsers").on("change", updateAccessWarning);
-        $(document).on("click", ".mcp-remove-user, .mcp-remove-group, .mcp-suggestion", function () {
-            setTimeout(updateAccessWarning, 0);
-        });
-        setTimeout(updateAccessWarning, 0);
-
-        // Tool filter & toggle
-        $("#mcp-tool-filter").on("input", renderTools);
-        $(document).on("click", ".mcp-tool-row", function () {
-            var name = $(this).data("name");
-            if (disabledSet.has(name)) { disabledSet.delete(name); } else { disabledSet.add(name); }
-            renderTools();
-        });
-
-        // Save
-        $("#mcp-admin-form").on("submit", function (e) {
-            e.preventDefault();
+        // Load users
+        var us = config.allowedUsers || "";
+        if (us) {
+          const keys = us
+            .split(",")
+            .map((k) => k.trim())
+            .filter(Boolean);
+          let loaded = 0;
+          keys.forEach((key) => {
             $.ajax({
-                url: url, type: "PUT", contentType: "application/json", headers: headers,
-                data: JSON.stringify({
-                    enabled: document.getElementById("enabled").checked,
-                    allowedGroups: allowedGroups.map(function (g) { return g.value; }).join(","),
-                    allowedUsers: allowedUsers.map(function (u) { return u.value; }).join(","),
-                    disabledTools: Array.from(disabledSet).sort().join(","),
-                    readOnlyMode: document.getElementById("readOnlyMode").checked,
-                    allowAllAuthenticatedUsers: document.getElementById("allowAllAuthenticatedUsers").checked,
-                    confluenceBaseUrl: $("#confluenceBaseUrl").val(),
-                    oauthClientId: $("#oauthClientId").val(),
-                    oauthClientSecret: $("#oauthClientSecret").val()
-                }),
-                processData: false
-            }).done(function () {
-                AJS.flag({ type: "success", title: "Configuration saved", close: "auto" });
-            }).fail(function (xhr) {
-                AJS.flag({ type: "error", title: "Failed to save: " + xhr.status, close: "auto" });
-            });
+              url:
+                AJS.contextPath() +
+                "/rest/api/user?username=" +
+                encodeURIComponent(key),
+              dataType: "json",
+              headers: headers,
+            })
+              .done((u) => {
+                allowedUsers.push({ value: u.name, label: u.displayName });
+              })
+              .fail(() => {
+                allowedUsers.push({ value: key, label: key });
+              })
+              .always(() => {
+                loaded++;
+                if (loaded === keys.length)
+                  renderTags(allowedUsers, "mcp-user-tags", "mcp-remove-user");
+              });
+          });
+        }
+        // OAuth
+        $("#oauthClientId").val(config.oauthClientId || "");
+        if (config.oauthClientSecretSet) {
+          $("#oauth-secret-status").text("Secret is configured.");
+        } else {
+          $("#oauth-secret-status").text("No secret configured yet.");
+        }
+        if (config.oauthEnabled) {
+          $("#oauth-status-group").prop("hidden", false);
+          $("#oauth-status").html(
+            '<span class="aui-lozenge aui-lozenge-success">Active</span>',
+          );
+        }
+        var baseUrl = window.location.origin + AJS.contextPath();
+        var mcpUrl = `${baseUrl}/plugins/servlet/mcp`;
+        $("#oauth-callback-url").text(
+          `${baseUrl}/plugins/servlet/mcp-oauth/callback`,
+        );
+        $("#oauth-mcp-config").text(
+          JSON.stringify(
+            {
+              mcpServers: {
+                confluence: { type: "http", url: mcpUrl },
+              },
+            },
+            null,
+            2,
+          ),
+        );
+      })
+      .fail((xhr) => {
+        $("#mcp-tools-list").html(
+          '<div style="padding:12px; color:var(--ds-text-danger, #de350b);">Failed to load config (HTTP ' +
+            xhr.status +
+            ").</div>",
+        );
+      });
+
+    // Access-scope warning reflects the allowlist + open-access toggle
+    $("#allowAllAuthenticatedUsers").on("change", updateAccessWarning);
+    $(document).on(
+      "click",
+      ".mcp-remove-user, .mcp-remove-group, .mcp-suggestion",
+      () => {
+        setTimeout(updateAccessWarning, 0);
+      },
+    );
+    setTimeout(updateAccessWarning, 0);
+
+    // Tool filter & toggle
+    $("#mcp-tool-filter").on("input", renderTools);
+    $(document).on("click", ".mcp-tool-row", function () {
+      var name = $(this).data("name");
+      if (disabledSet.has(name)) {
+        disabledSet.delete(name);
+      } else {
+        disabledSet.add(name);
+      }
+      renderTools();
+    });
+
+    // Save
+    $("#mcp-admin-form").on("submit", (e) => {
+      e.preventDefault();
+      $.ajax({
+        url: url,
+        type: "PUT",
+        contentType: "application/json",
+        headers: headers,
+        data: JSON.stringify({
+          enabled: document.getElementById("enabled").checked,
+          allowedGroups: allowedGroups.map((g) => g.value).join(","),
+          allowedUsers: allowedUsers.map((u) => u.value).join(","),
+          disabledTools: Array.from(disabledSet).sort().join(","),
+          readOnlyMode: document.getElementById("readOnlyMode").checked,
+          allowAllAuthenticatedUsers: document.getElementById(
+            "allowAllAuthenticatedUsers",
+          ).checked,
+          confluenceBaseUrl: $("#confluenceBaseUrl").val(),
+          oauthClientId: $("#oauthClientId").val(),
+          oauthClientSecret: $("#oauthClientSecret").val(),
+        }),
+        processData: false,
+      })
+        .done(() => {
+          AJS.flag({
+            type: "success",
+            title: "Configuration saved",
+            close: "auto",
+          });
+        })
+        .fail((xhr) => {
+          AJS.flag({
+            type: "error",
+            title: `Failed to save: ${xhr.status}`,
+            close: "auto",
+          });
         });
     });
+  });
 })(AJS.$ || jQuery);

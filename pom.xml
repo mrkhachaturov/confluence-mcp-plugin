@@ -7,21 +7,19 @@
 
     <groupId>com.atlassian.mcp</groupId>
     <artifactId>confluence-mcp-plugin</artifactId>
-    <version>1.2.5</version>
+    <version>1.3.3</version>
     <packaging>atlassian-plugin</packaging>
 
     <name>Confluence MCP Plugin</name>
     <description>Connect AI agents to Confluence Data Center</description>
 
     <properties>
-        <confluence.version>10.2.11</confluence.version>
-        <amps.version>9.12.5</amps.version>
+        <confluence.version>10.2.15</confluence.version>
+        <amps.version>9.13.0</amps.version>
         <atlassian.spring.scanner.version>6.0.2</atlassian.spring.scanner.version>
-        <mcp.sdk.version>2.0.0-M3</mcp.sdk.version>
-        <!-- Shared Atlassian platform BOM used by Confluence 10.2.11 (confluence-project:10.2.11
-             imports platform-public-api at this version). Manages jakarta/spring/jackson/sal/
-             plugins/rest/template-renderer versions so we don't hardcode them. -->
-        <platform.dependencies.version>8.3.16</platform.dependencies.version>
+        <mcp.sdk.version>2.0.1</mcp.sdk.version>
+        <!-- confluence-project:10.2.15 imports platform-public-api at this version. -->
+        <platform.dependencies.version>8.3.25</platform.dependencies.version>
         <atlassian.plugin.key>${project.groupId}.${project.artifactId}</atlassian.plugin.key>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
@@ -30,7 +28,7 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Atlassian platform BOM — supplies the versions Confluence 10.2.11 actually ships.
+            <!-- Atlassian platform BOM — supplies the versions Confluence 10.2.15 actually ships.
                  Provided deps below omit <version> and inherit from here. -->
             <dependency>
                 <groupId>com.atlassian.platform.dependencies</groupId>
@@ -55,7 +53,7 @@
             <version>${atlassian.spring.scanner.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- Versions below are managed by the platform-public-api BOM (Confluence 10.2.11). -->
+        <!-- Versions below are managed by the platform-public-api BOM (Confluence 10.2.15). -->
         <dependency>
             <groupId>com.atlassian.annotations</groupId>
             <artifactId>atlassian-annotations</artifactId>
@@ -117,8 +115,7 @@
             <artifactId>atlassian-plugins-api</artifactId>
             <scope>provided</scope>
         </dependency>
-        <!-- MCP Java SDK — embedded via OSGi <Private-Package> (see build instructions).
-             2.0.0-M3 is the newest published release on Maven Central. -->
+        <!-- MCP Java SDK — embedded via OSGi <Private-Package> (see build instructions). -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
@@ -196,6 +193,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.atlassian.oai</groupId>
+            <artifactId>swagger-request-validator-core</artifactId>
+            <version>2.44.9</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>5.12.0</version>
@@ -204,6 +207,50 @@
     </dependencies>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.eclipse.m2e</groupId>
+                    <artifactId>lifecycle-mapping</artifactId>
+                    <version>1.0.0</version>
+                    <configuration>
+                        <lifecycleMappingMetadata>
+                            <pluginExecutions>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>com.atlassian.maven.plugins</groupId>
+                                        <artifactId>confluence-maven-plugin</artifactId>
+                                        <versionRange>[0,)</versionRange>
+                                        <goals>
+                                            <goal>compress-resources</goal>
+                                            <goal>filter-plugin-descriptor</goal>
+                                            <goal>filter-test-plugin-descriptor</goal>
+                                            <goal>generate-rest-docs</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore/>
+                                    </action>
+                                </pluginExecution>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>com.atlassian.plugin</groupId>
+                                        <artifactId>atlassian-spring-scanner-maven-plugin</artifactId>
+                                        <versionRange>[0,)</versionRange>
+                                        <goals>
+                                            <goal>atlassian-spring-scanner</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore/>
+                                    </action>
+                                </pluginExecution>
+                            </pluginExecutions>
+                        </lifecycleMappingMetadata>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>com.atlassian.maven.plugins</groupId>
@@ -263,6 +310,30 @@
                 </executions>
                 <configuration>
                     <verbose>false</verbose>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <showDeprecation>true</showDeprecation>
+                    <showWarnings>true</showWarnings>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-this-escape,-serial,-processing</arg>
+                        <arg>-Werror</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <!-- Hard kill-switch: e2e tests hit a live Confluence via the MCP SDK client.
+                 Cap the surefire fork at 3 min so a network hang can never block CI. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <forkedProcessTimeoutInSeconds>180</forkedProcessTimeoutInSeconds>
+                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
                 </configuration>
             </plugin>
         </plugins>

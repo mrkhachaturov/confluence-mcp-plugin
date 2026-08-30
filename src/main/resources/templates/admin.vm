@@ -5,8 +5,6 @@
     $webResourceManager.requireResource("com.atlassian.mcp.confluence-mcp-plugin:mcp-admin-ui")
 </head>
 <body>
-    <h2>$i18n.getText("mcp.admin.title")</h2>
-
     <form id="mcp-admin-form" class="aui">
         <div class="aui-tabs horizontal-tabs">
             <ul class="tabs-menu">
@@ -36,13 +34,12 @@
 
             <!-- Access Control tab -->
             <div class="tabs-pane" id="mcp-tab-access">
-                <p class="description" style="margin-bottom:16px;">
+                <p class="description mcp-intro">
                     Define who can use MCP. By default access is <strong>denied</strong> until you add
                     at least one user or group (users override groups). To open the server to every
                     authenticated Confluence user, enable the toggle below.
                 </p>
-                <div id="mcp-access-warning" class="aui-message aui-message-warning"
-                     style="display:none; margin-bottom:16px;"></div>
+                <div id="mcp-access-warning" class="aui-message aui-message-warning" hidden></div>
                 <div class="field-group">
                     <label for="allowAllAuthenticatedUsers">Allow all authenticated users</label>
                     <aui-toggle id="allowAllAuthenticatedUsers" label="Allow all authenticated users"></aui-toggle>
@@ -53,35 +50,34 @@
                 </div>
                 <div class="field-group">
                     <label for="mcp-group-input">Allowed Groups</label>
-                    <div id="mcp-group-tags" style="margin-bottom:4px;"></div>
+                    <div id="mcp-group-tags" class="mcp-tags"></div>
                     <input type="text" id="mcp-group-input" class="text long-field" autocomplete="off"
                            placeholder="Type a group name to search...">
-                    <div id="mcp-group-suggestions" style="display:none;"></div>
+                    <div id="mcp-group-suggestions" class="mcp-suggestions" hidden></div>
                     <div class="description">Members of these groups can use MCP.</div>
                 </div>
                 <div class="field-group">
                     <label for="mcp-user-input">Allowed Users</label>
-                    <div id="mcp-user-tags" style="margin-bottom:4px;"></div>
+                    <div id="mcp-user-tags" class="mcp-tags"></div>
                     <input type="text" id="mcp-user-input" class="text long-field" autocomplete="off"
                            placeholder="Type a username to search...">
-                    <div id="mcp-user-suggestions" style="display:none;"></div>
+                    <div id="mcp-user-suggestions" class="mcp-suggestions" hidden></div>
                     <div class="description">Individual users with MCP access (overrides group settings).</div>
                 </div>
             </div>
 
             <!-- Tools tab -->
             <div class="tabs-pane" id="mcp-tab-tools">
-                <p class="description" style="margin-bottom:8px;">
+                <p class="description mcp-intro">
                     Click a tool to disable it. Click again to re-enable. Disabled tools are greyed out.
                 </p>
-                <input type="text" id="mcp-tool-filter" class="text" placeholder="Filter tools..."
-                       style="width:400px; margin-bottom:8px;">
+                <input type="text" id="mcp-tool-filter" class="text" placeholder="Filter tools...">
                 <div id="mcp-tools-list"></div>
             </div>
 
             <!-- OAuth tab -->
             <div class="tabs-pane" id="mcp-tab-oauth">
-                <p class="description" style="margin-bottom:16px;">
+                <p class="description mcp-intro">
                     Configure OAuth 2.0 so users can authenticate via browser consent instead of PATs.
                     Create an incoming Application Link in Confluence admin first, then enter the credentials here.
                 </p>
@@ -96,24 +92,24 @@
                            placeholder="Enter new secret (leave empty to keep current)">
                     <div class="description" id="oauth-secret-status"></div>
                 </div>
-                <div class="field-group" id="oauth-status-group" style="display:none;">
+                <div class="field-group" id="oauth-status-group" hidden>
                     <label>Status</label>
                     <div id="oauth-status"></div>
                 </div>
                 <div class="field-group">
                     <label>Callback URL (set in Application Link)</label>
-                    <pre id="oauth-callback-url" style="background:#1b2638; padding:12px; border-radius:3px; font-size:12px;"></pre>
+                    <pre id="oauth-callback-url" class="mcp-code"></pre>
                     <div class="description">Set this as the Redirect URL when creating the incoming Application Link.</div>
                 </div>
                 <div class="field-group">
                     <label>MCP Config for Users</label>
-                    <pre id="oauth-mcp-config" style="background:#1b2638; padding:12px; border-radius:3px; font-size:12px;"></pre>
+                    <pre id="oauth-mcp-config" class="mcp-code"></pre>
                     <div class="description">Users paste this into their Claude Code / Cursor MCP settings.</div>
                 </div>
             </div>
         </div>
 
-        <div class="buttons-container" style="margin-top: 20px;">
+        <div class="buttons-container mcp-actions">
             <div class="buttons">
                 <input type="submit" value="$i18n.getText('mcp.admin.save')" class="aui-button aui-button-primary">
             </div>

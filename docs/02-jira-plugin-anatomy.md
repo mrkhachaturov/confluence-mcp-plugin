@@ -24,21 +24,21 @@ The central configuration file for all plugin modules. Located at
 
 ## All Module Types
 
-| Module Type | Element | Purpose |
-|---|---|---|
-| REST API | `<rest>` | JAX-RS REST endpoints |
-| Servlet | `<servlet>` | HTTP servlets |
-| Servlet Filter | `<servlet-filter>` | Request/response filters |
-| Web Resource | `<web-resource>` | JS, CSS, images |
-| Web Section | `<web-section>` | Menu section containers |
-| Web Item | `<web-item>` | Menu links/buttons |
-| Web Panel | `<web-panel>` | Content panels in page locations |
-| Component | `<component>` | Internal Spring components |
-| Component Import | `<component-import>` | Import from host/other plugins |
-| Active Objects | `<ao>` | Database entity declarations |
-| Module Type | `<module-type>` | Custom module type definitions |
-| Tab Panel | `<component-tabpanel>` | Tabs on browse pages |
-| i18n | `<resource type="i18n">` | Internationalization strings |
+| Module Type      | Element                  | Purpose                          |
+| ---------------- | ------------------------ | -------------------------------- |
+| REST API         | `<rest>`                 | JAX-RS REST endpoints            |
+| Servlet          | `<servlet>`              | HTTP servlets                    |
+| Servlet Filter   | `<servlet-filter>`       | Request/response filters         |
+| Web Resource     | `<web-resource>`         | JS, CSS, images                  |
+| Web Section      | `<web-section>`          | Menu section containers          |
+| Web Item         | `<web-item>`             | Menu links/buttons               |
+| Web Panel        | `<web-panel>`            | Content panels in page locations |
+| Component        | `<component>`            | Internal Spring components       |
+| Component Import | `<component-import>`     | Import from host/other plugins   |
+| Active Objects   | `<ao>`                   | Database entity declarations     |
+| Module Type      | `<module-type>`          | Custom module type definitions   |
+| Tab Panel        | `<component-tabpanel>`   | Tabs on browse pages             |
+| i18n             | `<resource type="i18n">` | Internationalization strings     |
 
 ## Spring Component Model
 
@@ -67,12 +67,12 @@ public class MyComponentImpl implements MyComponent {
 }
 ```
 
-| Annotation | Purpose |
-|---|---|
+| Annotation         | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
 | `@ComponentImport` | Import a component from the host application or another plugin |
-| `@ExportAsService` | Export this component as an OSGi service |
-| `@Named` | Give the bean a name (JSR-330) |
-| `@Inject` | Constructor/field injection (JSR-330) |
+| `@ExportAsService` | Export this component as an OSGi service                       |
+| `@Named`           | Give the bean a name (JSR-330)                                 |
+| `@Inject`          | Constructor/field injection (JSR-330)                          |
 
 ### Maven Dependencies for Spring Scanner
 
@@ -143,14 +143,14 @@ Cross-product APIs that work across Jira, Confluence, etc.
     interface="com.atlassian.sal.api.auth.LoginUriProvider" />
 ```
 
-| SAL Service | Purpose |
-|---|---|
+| SAL Service             | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
 | `PluginSettingsFactory` | Persistent key-value storage for plugin config |
-| `UserManager` | Get current user, check admin status |
-| `LoginUriProvider` | Get login page URI for redirects |
-| `ApplicationProperties` | App name, base URL, build info |
-| `TransactionTemplate` | Transaction management |
-| `TemplateRenderer` | Render Velocity templates |
+| `UserManager`           | Get current user, check admin status           |
+| `LoginUriProvider`      | Get login page URI for redirects               |
+| `ApplicationProperties` | App name, base URL, build info                 |
+| `TransactionTemplate`   | Transaction management                         |
+| `TemplateRenderer`      | Render Velocity templates                      |
 
 ### PluginSettings Usage
 
@@ -239,19 +239,20 @@ public interface McpToolConfig extends Entity {
 
 ### Methods
 
-| Method | Use Case |
-|---|---|
-| **Personal Access Tokens (PAT)** | Recommended for API integrations |
-| **Basic Auth** | Username + password, scripts/bots only |
-| **OAuth** | Full OAuth flow via Application Links |
-| **Cookie-Based** | Browser JavaScript calls |
+| Method                           | Use Case                               |
+| -------------------------------- | -------------------------------------- |
+| **Personal Access Tokens (PAT)** | Recommended for API integrations       |
+| **Basic Auth**                   | Username + password, scripts/bots only |
+| **OAuth**                        | Full OAuth flow via Application Links  |
+| **Cookie-Based**                 | Browser JavaScript calls               |
 
 ### PAT Authentication
 
 Users create PATs via: Profile > Personal Access Tokens > Create Token
 
 Used in HTTP headers:
-```
+
+```text
 Authorization: Bearer <PAT_TOKEN>
 ```
 
@@ -265,7 +266,7 @@ REST endpoints declared via `<rest>` module handle this automatically.
 
 ## References
 
-- Plugin Descriptor: https://developer.atlassian.com/server/framework/atlassian-sdk/plugin-descriptor/
-- SAL Developer Guide: https://developer.atlassian.com/server/framework/atlassian-sdk/sal-code-samples/
-- Active Objects: https://developer.atlassian.com/server/framework/atlassian-sdk/active-objects/
-- Spring Scanner: https://developer.atlassian.com/server/framework/atlassian-sdk/atlassian-spring-scanner/
+- Plugin Descriptor: <https://developer.atlassian.com/server/framework/atlassian-sdk/plugin-descriptor/>
+- SAL Developer Guide: <https://developer.atlassian.com/server/framework/atlassian-sdk/sal-code-samples/>
+- Active Objects: <https://developer.atlassian.com/server/framework/atlassian-sdk/active-objects/>
+- Spring Scanner: <https://developer.atlassian.com/server/framework/atlassian-sdk/atlassian-spring-scanner/>

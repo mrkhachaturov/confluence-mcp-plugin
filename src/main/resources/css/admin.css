@@ -1,94 +1,142 @@
 /* MCP Admin */
-#mcp-admin-form .field-group { margin-bottom: 16px; }
-#mcp-admin-form h3 { margin-top: 24px; border-bottom: 1px solid var(--ds-border, #dfe1e6); padding-bottom: 6px; }
+#mcp-admin-form .field-group {
+  margin-bottom: 16px;
+}
+#mcp-admin-form h3 {
+  margin-top: 24px;
+  border-bottom: 1px solid var(--ds-border, #dfe1e6);
+  padding-bottom: 6px;
+}
 
 /* Scale down AUI toggles */
 #mcp-admin-form aui-toggle {
-    transform: scale(0.8);
-    transform-origin: left center;
+  transform: scale(0.8);
+  transform-origin: left center;
 }
 
 /* Tag picker — shared for users & groups.
    Colors use Atlassian Design System tokens (--ds-*) so they adapt to the active
    light/dark theme; the fallback after each comma is the light-theme value. */
 .mcp-tag {
-    display: inline-block;
-    margin: 2px 4px 2px 0;
-    padding: 3px 8px;
-    background: var(--ds-background-neutral, #f4f5f7);
-    color: var(--ds-text, #172b4d);
-    border: 1px solid var(--ds-border, #dfe1e6);
-    border-radius: 3px;
-    font-size: 13px;
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 3px 8px;
+  background: var(--ds-background-neutral, #f4f5f7);
+  color: var(--ds-text, #172b4d);
+  border: 1px solid var(--ds-border, #dfe1e6);
+  border-radius: 3px;
+  font-size: 13px;
 }
 .mcp-tag a {
-    margin-left: 6px;
-    color: var(--ds-text-danger, #de350b);
-    text-decoration: none;
-    font-weight: bold;
+  margin-left: 6px;
+  color: var(--ds-text-danger, #de350b);
+  text-decoration: none;
+  font-weight: bold;
 }
 
 /* Suggestion dropdown — shared */
-#mcp-user-suggestions, #mcp-group-suggestions {
-    position: absolute;
-    z-index: 100;
-    background: var(--ds-surface-overlay, #ffffff);
-    color: var(--ds-text, #172b4d);
-    border: 1px solid var(--ds-border, #dfe1e6);
-    border-radius: 3px;
-    box-shadow: var(--ds-shadow-overlay, 0 4px 8px -2px rgba(9, 30, 66, 0.25));
-    max-height: 200px;
-    overflow-y: auto;
-    width: 400px;
+.mcp-suggestions {
+  position: absolute;
+  z-index: 100;
+  background: var(--ds-surface-overlay, #ffffff);
+  color: var(--ds-text, #172b4d);
+  border: 1px solid var(--ds-border, #dfe1e6);
+  border-radius: 3px;
+  box-shadow: var(--ds-shadow-overlay, 0 4px 8px -2px rgba(9, 30, 66, 0.25));
+  max-height: 200px;
+  overflow-y: auto;
+  width: 400px;
+  max-width: 100%;
 }
 .mcp-suggestion {
-    padding: 8px 12px;
-    cursor: pointer;
-    color: var(--ds-text, #172b4d);
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--ds-text, #172b4d);
 }
 .mcp-suggestion:hover {
-    background: var(--ds-background-neutral-hovered, #ebecf0);
+  background: var(--ds-background-neutral-hovered, #ebecf0);
 }
 
 /* Tool list — click to toggle */
 #mcp-tools-list {
-    border: 1px solid var(--ds-border, #dfe1e6);
-    border-radius: 3px;
-    max-height: 500px;
-    overflow-y: auto;
+  border: 1px solid var(--ds-border, #dfe1e6);
+  border-radius: 3px;
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .mcp-tool-row {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--ds-border, #ebecf0);
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    transition: background 0.1s, opacity 0.1s;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--ds-border, #ebecf0);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  transition:
+    background 0.1s,
+    opacity 0.1s;
 }
-.mcp-tool-row:hover { background: var(--ds-background-neutral-subtle-hovered, #ebecf0); }
+.mcp-tool-row:hover {
+  background: var(--ds-background-neutral-subtle-hovered, #ebecf0);
+}
 .mcp-tool-row.mcp-tool-disabled {
-    opacity: 0.45;
-    text-decoration: line-through;
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 .mcp-tool-toggle {
-    font-size: 14px;
-    width: 18px;
-    flex-shrink: 0;
-    text-align: center;
+  font-size: 14px;
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
 }
-.mcp-tool-row:not(.mcp-tool-disabled) .mcp-tool-toggle { color: var(--ds-text-success, #00875a); }
-.mcp-tool-row.mcp-tool-disabled .mcp-tool-toggle { color: var(--ds-text-danger, #de350b); }
+.mcp-tool-row:not(.mcp-tool-disabled) .mcp-tool-toggle {
+  color: var(--ds-text-success, #00875a);
+}
+.mcp-tool-row.mcp-tool-disabled .mcp-tool-toggle {
+  color: var(--ds-text-danger, #de350b);
+}
 .mcp-tool-label {
-    font-family: monospace;
-    font-weight: 500;
-    font-size: 13px;
-    flex-shrink: 0;
+  font-family: monospace;
+  font-weight: 500;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 .mcp-tool-desc {
-    font-size: 12px;
-    color: var(--ds-text-subtlest, #6b778c);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--ds-text-subtlest, #6b778c);
+  /* A description is the only thing in the row worth reading, so it wraps onto as
+     many lines as it needs. Truncating it instead left a row that could not shrink,
+     which widened the page and put a horizontal scrollbar across the whole screen. */
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Read-only value blocks */
+.mcp-code {
+  background: var(--ds-background-neutral, #f4f5f7);
+  color: var(--ds-text, #172b4d);
+  padding: 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+#mcp-tool-filter {
+  width: 400px;
+  max-width: 100%;
+  margin-bottom: 8px;
+}
+
+/* Spacing the template used to set inline. */
+.mcp-intro {
+  margin-bottom: 16px;
+}
+.mcp-tags {
+  margin-bottom: 4px;
+}
+.mcp-actions {
+  margin-top: 20px;
 }

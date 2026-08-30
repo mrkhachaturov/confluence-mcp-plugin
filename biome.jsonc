@@ -1,0 +1,14 @@
+{
+  "files": {
+    "includes": [
+      "**",
+      // Atlassian's published API descriptions, vendored verbatim.
+      "!docs/9.0.0.swagger.v3.json",
+      "!src/test/resources/confluence-openapi.json"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  }
+}

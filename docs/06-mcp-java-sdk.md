@@ -6,7 +6,7 @@ The official MCP Java SDK (`io.modelcontextprotocol.sdk`) provides a production-
 implementation of the Model Context Protocol for Java applications. Maintained in
 collaboration with Spring AI.
 
-- GitHub: https://github.com/modelcontextprotocol/java-sdk
+- GitHub: <https://github.com/modelcontextprotocol/java-sdk>
 - Maven Central: `io.modelcontextprotocol.sdk:mcp`
 - Minimum Java: 17
 - Conformance: 40/40 tests passed (100%), spec version 2025-06-18
@@ -42,23 +42,23 @@ collaboration with Spring AI.
 
 ## SDK Modules
 
-| Module | Description |
-|---|---|
-| `mcp-bom` | Dependency version management |
-| `mcp-core` | Core: STDIO, JDK HttpClient, Servlet transport |
-| `mcp-json-jackson2` | JSON via Jackson 2 |
-| `mcp-json-jackson3` | JSON via Jackson 3 |
-| `mcp` | Convenience bundle (core + Jackson 3) |
-| `mcp-spring-webmvc` | Spring WebMVC transport |
-| `mcp-test` | Testing utilities |
+| Module              | Description                                    |
+| ------------------- | ---------------------------------------------- |
+| `mcp-bom`           | Dependency version management                  |
+| `mcp-core`          | Core: STDIO, JDK HttpClient, Servlet transport |
+| `mcp-json-jackson2` | JSON via Jackson 2                             |
+| `mcp-json-jackson3` | JSON via Jackson 3                             |
+| `mcp`               | Convenience bundle (core + Jackson 3)          |
+| `mcp-spring-webmvc` | Spring WebMVC transport                        |
+| `mcp-test`          | Testing utilities                              |
 
 ## Server Types
 
-| Factory Method | Returns | Session |
-|---|---|---|
-| `McpServer.sync(provider)` | `McpSyncServer` | Stateful |
-| `McpServer.async(provider)` | `McpAsyncServer` | Stateful |
-| `McpServer.statelessSync(provider)` | `McpStatelessSyncServer` | Stateless |
+| Factory Method                       | Returns                   | Session   |
+| ------------------------------------ | ------------------------- | --------- |
+| `McpServer.sync(provider)`           | `McpSyncServer`           | Stateful  |
+| `McpServer.async(provider)`          | `McpAsyncServer`          | Stateful  |
+| `McpServer.statelessSync(provider)`  | `McpStatelessSyncServer`  | Stateless |
 | `McpServer.statelessAsync(provider)` | `McpStatelessAsyncServer` | Stateless |
 
 ## Server Transports (Built-in, No Spring Required)
@@ -172,13 +172,13 @@ McpAsyncServer asyncServer = McpServer.async(transportProvider)
 
 For a **tools-only** server (our use case), the SDK handles:
 
-| Method | Direction | Handled By |
-|---|---|---|
-| `initialize` | Client -> Server | SDK (automatic) |
-| `notifications/initialized` | Client -> Server | SDK (automatic) |
-| `ping` | Bidirectional | SDK (automatic) |
-| `tools/list` | Client -> Server | SDK + your tool registrations |
-| `tools/call` | Client -> Server | Your tool handlers |
+| Method                      | Direction        | Handled By                    |
+| --------------------------- | ---------------- | ----------------------------- |
+| `initialize`                | Client -> Server | SDK (automatic)               |
+| `notifications/initialized` | Client -> Server | SDK (automatic)               |
+| `ping`                      | Bidirectional    | SDK (automatic)               |
+| `tools/list`                | Client -> Server | SDK + your tool registrations |
+| `tools/call`                | Client -> Server | Your tool handlers            |
 
 ## Streamable HTTP Transport Protocol
 
@@ -215,6 +215,7 @@ MCP supports OAuth 2.1 for HTTP transports, but it's **optional**. Options:
 3. **None** (rely on host app auth, e.g., Jira session)
 
 For a Jira DC plugin, we can leverage Jira's built-in auth:
+
 - PAT tokens in `Authorization: Bearer <PAT>` header
 - Jira session cookies for logged-in users
 
@@ -222,7 +223,7 @@ For a Jira DC plugin, we can leverage Jira's built-in auth:
 
 The MCP Java SDK uses **Jakarta Servlet** (`jakarta.servlet.*`).
 
-### Jira 10+ Uses Jakarta Too!
+### Jira 10+ Uses Jakarta Too
 
 **Critical finding:** Jira 10.0+ migrated from `javax.*` to `jakarta.*` namespaces.
 Since your Jira instance is **10.7.4**, it uses `jakarta.servlet`, `jakarta.ws.rs`,
@@ -251,18 +252,18 @@ This means `HttpServletStreamableServerTransportProvider` (which extends
 
 ### Jira Version Compatibility
 
-| Jira Version | Servlet API | JAX-RS | Inject |
-|---|---|---|---|
-| 9.x and below | `javax.servlet` | `javax.ws.rs` (1.x) | `javax.inject` |
-| 10.x+ | `jakarta.servlet` | `jakarta.ws.rs` (3.x) | `jakarta.inject` |
-| 11.x+ | `jakarta.servlet` | `jakarta.ws.rs` (3.x) | `jakarta.inject` |
+| Jira Version  | Servlet API       | JAX-RS                | Inject           |
+| ------------- | ----------------- | --------------------- | ---------------- |
+| 9.x and below | `javax.servlet`   | `javax.ws.rs` (1.x)   | `javax.inject`   |
+| 10.x+         | `jakarta.servlet` | `jakarta.ws.rs` (3.x) | `jakarta.inject` |
+| 11.x+         | `jakarta.servlet` | `jakarta.ws.rs` (3.x) | `jakarta.inject` |
 
 Plugins targeting Jira 10+ are **NOT backward-compatible** with Jira 9.
 
 ## References
 
-- MCP Java SDK: https://github.com/modelcontextprotocol/java-sdk
-- MCP Java SDK Docs: https://java.sdk.modelcontextprotocol.io/latest/
-- MCP Specification: https://modelcontextprotocol.io/specification/
-- MCP Transports: https://modelcontextprotocol.io/specification/draft/basic/transports
-- MCP Authorization: https://modelcontextprotocol.io/specification/draft/basic/authorization
+- MCP Java SDK: <https://github.com/modelcontextprotocol/java-sdk>
+- MCP Java SDK Docs: <https://java.sdk.modelcontextprotocol.io/latest/>
+- MCP Specification: <https://modelcontextprotocol.io/specification/>
+- MCP Transports: <https://modelcontextprotocol.io/specification/draft/basic/transports>
+- MCP Authorization: <https://modelcontextprotocol.io/specification/draft/basic/authorization>

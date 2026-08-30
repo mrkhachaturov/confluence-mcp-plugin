@@ -3,6 +3,7 @@
 ## The Core Idea
 
 Embed an MCP server directly inside a Jira Data Center plugin so that:
+
 - Users don't need to self-host the MCP server
 - Admins control who has access and which tools are available
 - Users connect their AI agents using their Jira PAT
@@ -36,15 +37,16 @@ classloading issues arise.
 **Advantage of running inside Jira:** We can use Jira's internal Java APIs instead of
 making REST API calls to ourselves.
 
-| Upstream (External) | Plugin (Internal) |
-|---|---|
+| Upstream (External)           | Plugin (Internal)                  |
+| ----------------------------- | ---------------------------------- |
 | `GET /rest/api/2/issue/{key}` | `IssueManager.getIssueObject(key)` |
-| `POST /rest/api/2/search` | `SearchService.search(jql)` |
-| `POST /rest/api/2/issue` | `IssueService.create(user, input)` |
-| HTTP Basic Auth / PAT | `JiraAuthenticationContext` |
-| JSON parsing/formatting | Direct Java object access |
+| `POST /rest/api/2/search`     | `SearchService.search(jql)`        |
+| `POST /rest/api/2/issue`      | `IssueService.create(user, input)` |
+| HTTP Basic Auth / PAT         | `JiraAuthenticationContext`        |
+| JSON parsing/formatting       | Direct Java object access          |
 
 This means:
+
 - Zero HTTP overhead
 - Direct access to the user's permission context
 - Can use services not exposed via REST
@@ -52,7 +54,7 @@ This means:
 
 ### 3. Authentication Flow
 
-```
+```text
 MCP Client (Claude, etc.)
     |
     | Authorization: Bearer <Jira PAT>
@@ -77,6 +79,7 @@ The plugin inherits Jira's authentication. When a request comes in with a PAT in
 ### 4. Admin Configuration
 
 Admin page at `/plugins/servlet/mcp/admin` with:
+
 - **Global enable/disable** - Turn MCP server on/off
 - **User allowlist** - Which users can access the MCP endpoint
 - **Tool selection** - Which MCP tools are available (per-user or global)
@@ -87,7 +90,7 @@ more complex per-user tool permissions.
 
 ### 5. Plugin Architecture
 
-```
+```text
 com.example.mcp/
 ├── McpServlet.java           # Main MCP endpoint (Streamable HTTP)
 │   ├── doPost()              # Handle JSON-RPC requests
@@ -151,12 +154,14 @@ public class SearchTool implements McpTool {
 For the first version, focus on:
 
 **Phase 1 - Core Infrastructure:**
+
 - Plugin skeleton (Maven, AMPS, atlassian-plugin.xml)
 - MCP Streamable HTTP servlet (JSON-RPC handling)
 - Basic auth (PAT validation via Jira)
 - `initialize`, `tools/list`, `tools/call` protocol support
 
 **Phase 2 - Essential Tools (read-only):**
+
 - `search` - JQL search
 - `get_issue` - Get issue details
 - `get_all_projects` - List projects
@@ -165,12 +170,14 @@ For the first version, focus on:
 - `get_sprints_from_board` - Get sprints
 
 **Phase 3 - Write Tools:**
+
 - `create_issue` - Create issue
 - `update_issue` - Update issue
 - `add_comment` - Add comment
 - `transition_issue` - Change status
 
 **Phase 4 - Admin UI:**
+
 - Admin configuration page
 - User allowlist management
 - Per-tool enable/disable
@@ -219,16 +226,16 @@ Users configure their MCP client (Claude, Cursor, etc.) with:
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| OSGi classloading issues | Careful dependency management, test in AMPS |
-| Jira API changes between versions | Target 10.7.x specifically, use stable APIs |
-| Long-running SSE connections | Implement timeouts, connection limits |
-| Plugin memory impact | Stateless tool execution, no caching |
-| Security (tool access control) | Admin-controlled allowlist, respect Jira permissions |
+| Risk                              | Mitigation                                           |
+| --------------------------------- | ---------------------------------------------------- |
+| OSGi classloading issues          | Careful dependency management, test in AMPS          |
+| Jira API changes between versions | Target 10.7.x specifically, use stable APIs          |
+| Long-running SSE connections      | Implement timeouts, connection limits                |
+| Plugin memory impact              | Stateless tool execution, no caching                 |
+| Security (tool access control)    | Admin-controlled allowlist, respect Jira permissions |
 
 ## References
 
-- MCP Streamable HTTP spec: https://modelcontextprotocol.io/specification/draft/basic/transports
-- Jira Java API: https://docs.atlassian.com/software/jira/docs/api/
-- Jira REST API v2: https://docs.atlassian.com/jira-software/REST/latest/
+- MCP Streamable HTTP spec: <https://modelcontextprotocol.io/specification/draft/basic/transports>
+- Jira Java API: <https://docs.atlassian.com/software/jira/docs/api/>
+- Jira REST API v2: <https://docs.atlassian.com/jira-software/REST/latest/>

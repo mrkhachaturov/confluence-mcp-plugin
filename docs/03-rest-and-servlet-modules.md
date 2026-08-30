@@ -16,27 +16,29 @@ HTTP APIs from a Jira DC plugin.
 
 ### Attributes
 
-| Attribute | Required | Description |
-|---|---|---|
-| `key` | Yes | Unique module identifier |
-| `path` | Yes | Base URL path (e.g., `/mcp`) |
-| `version` | Yes | API version; use `none` to omit from URL |
-| `<package>` | No | Package to scan for JAX-RS resources |
-| `<dispatcher>` | No | REQUEST, INCLUDE, FORWARD, ERROR |
+| Attribute      | Required | Description                              |
+| -------------- | -------- | ---------------------------------------- |
+| `key`          | Yes      | Unique module identifier                 |
+| `path`         | Yes      | Base URL path (e.g., `/mcp`)             |
+| `version`      | Yes      | API version; use `none` to omit from URL |
+| `<package>`    | No       | Package to scan for JAX-RS resources     |
+| `<dispatcher>` | No       | REQUEST, INCLUDE, FORWARD, ERROR         |
 
 ### URL Pattern
 
-```
+```text
 http://host:port/context/rest/{path}/{version}/{resource-path}
 ```
 
 Example with `path="/mcp"`, `version="1.0"`:
-```
+
+```text
 https://bpm.example.com/rest/mcp/1.0/tools
 ```
 
 Use `version="none"` to omit version:
-```
+
+```text
 https://bpm.example.com/rest/mcp/tools
 ```
 
@@ -92,7 +94,8 @@ public Response example(@Context HttpServletRequest request,
 
 Two options:
 
-**1. JAXB Annotations (built-in)**
+#### 1. JAXB Annotations (built-in)
+
 ```java
 import javax.xml.bind.annotation.*;
 
@@ -105,7 +108,8 @@ public class ToolDefinition {
 }
 ```
 
-**2. Gson (add dependency)**
+#### 2. Gson (add dependency)
+
 ```xml
 <dependency>
     <groupId>com.google.code.gson</groupId>
@@ -117,6 +121,7 @@ public class ToolDefinition {
 ### Response Format Selection
 
 Clients can request format via:
+
 1. `Accept` header: `application/json`
 2. URL extension: `/rest/mcp/1.0/tools.json`
 
@@ -155,19 +160,20 @@ or custom protocols.
 
 ### Attributes
 
-| Attribute | Required | Description |
-|---|---|---|
-| `key` | Yes | Unique identifier |
-| `class` | Yes | Must extend `javax.servlet.http.HttpServlet` |
-| `<url-pattern>` | Yes | URL matching pattern (repeatable) |
-| `<init-param>` | No | Initialization parameters |
-| `name` | No | Human-readable name |
-| `state` | No | `enabled` (default) or `disabled` |
+| Attribute       | Required | Description                                  |
+| --------------- | -------- | -------------------------------------------- |
+| `key`           | Yes      | Unique identifier                            |
+| `class`         | Yes      | Must extend `javax.servlet.http.HttpServlet` |
+| `<url-pattern>` | Yes      | URL matching pattern (repeatable)            |
+| `<init-param>`  | No       | Initialization parameters                    |
+| `name`          | No       | Human-readable name                          |
+| `state`         | No       | `enabled` (default) or `disabled`            |
 
 ### URL Access
 
 Servlets are served under `/plugins/servlet/` prefix:
-```
+
+```text
 https://bpm.example.com/plugins/servlet/mcp/endpoint
 ```
 
@@ -214,6 +220,7 @@ public class McpServlet extends HttpServlet {
 - `?` matches zero or one character
 
 Examples:
+
 - `/mcp/*` matches `/mcp/endpoint`, `/mcp/a/b/c`
 - `/mcp/?.json` matches `/mcp/a.json`, `/mcp/.json`
 
@@ -259,6 +266,7 @@ protected void doGet(HttpServletRequest req, HttpServletResponse resp)
 ```
 
 **Considerations:**
+
 - Tomcat supports async servlets (Servlet 3.0+) for long-lived connections
 - Enable async in web.xml or via `@WebServlet(asyncSupported = true)`
 - For Jira plugins, async servlet support depends on the plugin framework version
@@ -280,16 +288,16 @@ protected void doGet(HttpServletRequest req, HttpServletResponse resp)
 
 ### Filter Locations
 
-| Location | Description |
-|---|---|
-| `after-encoding` | After character encoding filter |
-| `before-login` | Before authentication |
-| `before-decoration` | Before page decoration |
-| `before-dispatch` | Before request dispatch |
-| `after-dispatch` | After request dispatch (cleanup) |
+| Location            | Description                      |
+| ------------------- | -------------------------------- |
+| `after-encoding`    | After character encoding filter  |
+| `before-login`      | Before authentication            |
+| `before-decoration` | Before page decoration           |
+| `before-dispatch`   | Before request dispatch          |
+| `after-dispatch`    | After request dispatch (cleanup) |
 
 ## References
 
-- REST Plugin Module: https://developer.atlassian.com/server/framework/atlassian-sdk/rest-plugin-module/
-- Servlet Plugin Module: https://developer.atlassian.com/server/framework/atlassian-sdk/servlet-plugin-module/
-- Servlet Filter Module: https://developer.atlassian.com/server/framework/atlassian-sdk/servlet-filter-plugin-module/
+- REST Plugin Module: <https://developer.atlassian.com/server/framework/atlassian-sdk/rest-plugin-module/>
+- Servlet Plugin Module: <https://developer.atlassian.com/server/framework/atlassian-sdk/servlet-plugin-module/>
+- Servlet Filter Module: <https://developer.atlassian.com/server/framework/atlassian-sdk/servlet-filter-plugin-module/>

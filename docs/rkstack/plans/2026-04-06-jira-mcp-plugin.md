@@ -11,6 +11,7 @@
 **Tech Stack:** Java 17, Maven (AMPS 9.9.1), Jira DC 10.7.4, Jakarta Servlet/JAX-RS, Jackson (Jira-provided)
 
 **Build commands:**
+
 - Build: `atlas-package`
 - Run locally: `atlas-run`
 - Unit tests: `atlas-unit-test` or `mvn test`
@@ -19,12 +20,15 @@
 **Test approach:** Unit tests mock `JiraRestClient` to test tool logic and JSON-RPC handling in isolation. Integration testing against a live Jira instance is manual via `atlas-run`.
 
 **Upstream bootstrap:** Before starting, ensure `.upstream/mcp-atlassian` is checked out at tag `v0.21.0`:
+
 ```bash
 cd .upstream/mcp-atlassian && git checkout v0.21.0
 ```
+
 The plan references upstream Python files for tool definitions — these must be available locally.
 
 **Error shape convention:** MCP distinguishes two error types:
+
 - **Protocol errors** (malformed JSON, unknown method, missing params) — return JSON-RPC `error` object with code `-327xx` / `-326xx`
 - **Tool execution errors** (Jira API returned 404, permission denied, timeout) — return `CallToolResult` with `isError: true` and error description in `content`. This is NOT a JSON-RPC error — the tool call succeeded at the protocol level but the tool itself failed.
 
@@ -33,6 +37,7 @@ The plan references upstream Python files for tool definitions — these must be
 ## File Map
 
 **Create:**
+
 - `.mise.toml` — java 17, maven 3.9, just
 - `justfile` — build/dev task runner
 - `upstream-versions.json` — tracks ported upstream versions
@@ -70,6 +75,7 @@ The plan references upstream Python files for tool definitions — these must be
 - `src/test/java/com/atlassian/mcp/plugin/McpResourceTest.java`
 
 **Modify:**
+
 - `.gitignore` — add Maven target/, IDE files
 
 ---
@@ -79,6 +85,7 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 1: Initialize Maven project and toolchain files
 
 **Files:**
+
 - Create: `.mise.toml`
 - Create: `justfile`
 - Create: `upstream-versions.json`
@@ -86,7 +93,6 @@ The plan references upstream Python files for tool definitions — these must be
 - Create: `src/main/resources/atlassian-plugin.xml`
 - Create: `src/main/resources/mcp-plugin.properties`
 - Modify: `.gitignore`
-
 - [ ] **Step 1: Create `.mise.toml`**
 
   ```toml
@@ -365,7 +371,7 @@ The plan references upstream Python files for tool definitions — these must be
 
   Append to existing `.gitignore`:
 
-  ```
+  ```text
   # Maven
   target/
 
@@ -383,7 +389,6 @@ The plan references upstream Python files for tool definitions — these must be
   Expected: BUILD SUCCESS (no source files yet, just validates pom.xml and dependencies resolve)
 
   Note: This may take several minutes on first run as Maven downloads Jira dependencies.
-
 - [ ] **Step 9: Commit**
 
   ```bash
@@ -401,7 +406,9 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 2: JiraRestClient
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/JiraRestClient.java`
+
 - Create: `src/test/java/com/atlassian/mcp/plugin/JiraRestClientTest.java`
 
 - [ ] **Step 1: Write `JiraRestClient.java`**
@@ -578,6 +585,7 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 3: McpPluginConfig
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/config/McpPluginConfig.java`
 
 - [ ] **Step 1: Write `McpPluginConfig.java`**
@@ -688,9 +696,9 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 4: McpTool interface and ToolRegistry
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/McpTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/ToolRegistry.java`
-
 - [ ] **Step 1: Write `McpTool.java`**
 
   ```java
@@ -834,10 +842,10 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 5: JsonRpcHandler and McpResource
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/JsonRpcHandler.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/McpResource.java`
 - Create: `src/test/java/com/atlassian/mcp/plugin/JsonRpcHandlerTest.java`
-
 - [ ] **Step 1: Write `JsonRpcHandler.java`**
 
   ```java
@@ -1217,7 +1225,6 @@ The plan references upstream Python files for tool definitions — these must be
 
   Run: `mvn test -Dtest=JsonRpcHandlerTest -q`
   Expected: All tests pass
-
 - [ ] **Step 5: Commit**
 
   ```bash
@@ -1234,17 +1241,18 @@ The plan references upstream Python files for tool definitions — these must be
 ### Task 6: Implement search, get_issue, and get_all_projects tools
 
 These three tools establish the pattern for all remaining tools. Each tool:
+
 1. Implements `McpTool`
 2. Calls `JiraRestClient` with the appropriate REST endpoint
 3. Returns the Jira JSON response as-is
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/issues/SearchTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/issues/GetIssueTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/projects/GetAllProjectsTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/ToolInitializer.java`
 - Create: `src/test/java/com/atlassian/mcp/plugin/tools/SearchToolTest.java`
-
 - [ ] **Step 1: Write `SearchTool.java`**
 
   ```java
@@ -1549,7 +1557,6 @@ These three tools establish the pattern for all remaining tools. Each tool:
 
   Run: `mvn test -q`
   Expected: All tests pass
-
 - [ ] **Step 7: Commit**
 
   ```bash
@@ -1564,7 +1571,6 @@ These three tools establish the pattern for all remaining tools. Each tool:
 
   Run: `atlas-package -q`
   Expected: BUILD SUCCESS, `target/atlassian-mcp-plugin-1.0.0-SNAPSHOT.jar` exists
-
 - [ ] **Step 9: Commit build verification**
 
   No changes to commit — this step verifies the build works.
@@ -1580,6 +1586,7 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
 ### Task 7: Issues tools (remaining 5)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/issues/CreateIssueTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/issues/UpdateIssueTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/issues/DeleteIssueTool.java`
@@ -1588,13 +1595,14 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
 - Modify: `src/main/java/com/atlassian/mcp/plugin/tools/ToolInitializer.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint |
-|---|---|---|
-| create_issue | POST | `/rest/api/2/issue` |
-| update_issue | PUT | `/rest/api/2/issue/{issueKey}` |
-| delete_issue | DELETE | `/rest/api/2/issue/{issueKey}` |
-| batch_create_issues | POST | `/rest/api/2/issue/bulk` |
-| batch_get_changelogs | GET | `/rest/api/2/issue/{issueKey}/changelog` |
+
+| Tool                 | Method | Endpoint                                 |
+| -------------------- | ------ | ---------------------------------------- |
+| create_issue         | POST   | `/rest/api/2/issue`                      |
+| update_issue         | PUT    | `/rest/api/2/issue/{issueKey}`           |
+| delete_issue         | DELETE | `/rest/api/2/issue/{issueKey}`           |
+| batch_create_issues  | POST   | `/rest/api/2/issue/bulk`                 |
+| batch_get_changelogs | GET    | `/rest/api/2/issue/{issueKey}/changelog` |
 
 - [ ] **Step 1:** Create all 5 tool classes following the SearchTool pattern. Each tool:
   - Has `isWriteTool()` returning `true` for create/update/delete
@@ -1604,7 +1612,6 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
   - Returns the Jira JSON response
 
   Read `.upstream/mcp-atlassian/src/mcp_atlassian/servers/jira.py` lines 386-602 for the upstream `create_issue`, `update_issue`, `delete_issue`, `batch_create_issues` definitions. Read lines 603-705 for `batch_get_changelogs`.
-
 - [ ] **Step 2:** Register all 5 tools in `ToolInitializer`
 - [ ] **Step 3:** Run `mvn test -q` — all tests pass
 - [ ] **Step 4:** Commit: `git commit -m "feat: add issue CRUD tools (create, update, delete, batch)"`
@@ -1614,6 +1621,7 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
 ### Task 8: Comments, Transitions, and Worklogs tools (6 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/comments/AddCommentTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/comments/EditCommentTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/transitions/GetTransitionsTool.java`
@@ -1622,14 +1630,15 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/worklogs/AddWorklogTool.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint |
-|---|---|---|
-| add_comment | POST | `/rest/api/2/issue/{issueKey}/comment` |
-| edit_comment | PUT | `/rest/api/2/issue/{issueKey}/comment/{commentId}` |
-| get_transitions | GET | `/rest/api/2/issue/{issueKey}/transitions` |
-| transition_issue | POST | `/rest/api/2/issue/{issueKey}/transitions` |
-| get_worklog | GET | `/rest/api/2/issue/{issueKey}/worklog` |
-| add_worklog | POST | `/rest/api/2/issue/{issueKey}/worklog` |
+
+| Tool             | Method | Endpoint                                           |
+| ---------------- | ------ | -------------------------------------------------- |
+| add_comment      | POST   | `/rest/api/2/issue/{issueKey}/comment`             |
+| edit_comment     | PUT    | `/rest/api/2/issue/{issueKey}/comment/{commentId}` |
+| get_transitions  | GET    | `/rest/api/2/issue/{issueKey}/transitions`         |
+| transition_issue | POST   | `/rest/api/2/issue/{issueKey}/transitions`         |
+| get_worklog      | GET    | `/rest/api/2/issue/{issueKey}/worklog`             |
+| add_worklog      | POST   | `/rest/api/2/issue/{issueKey}/worklog`             |
 
 - [ ] **Step 1:** Create all 6 tool classes. Read upstream lines 706-907 for comments and transitions, lines 1040-1176 for worklogs.
 - [ ] **Step 2:** Register in `ToolInitializer`
@@ -1641,18 +1650,20 @@ Read the upstream Python tool definitions at `.upstream/mcp-atlassian/src/mcp_at
 ### Task 9: Boards and Sprints tools (4 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/boards/GetAgileBoardsTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/boards/GetBoardIssuesTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/boards/GetSprintsFromBoardTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/boards/GetSprintIssuesTool.java`
 
 **REST endpoints (Agile API):**
-| Tool | Method | Endpoint |
-|---|---|---|
-| get_agile_boards | GET | `/rest/agile/1.0/board` |
-| get_board_issues | GET | `/rest/agile/1.0/board/{boardId}/issue` |
-| get_sprints_from_board | GET | `/rest/agile/1.0/board/{boardId}/sprint` |
-| get_sprint_issues | GET | `/rest/agile/1.0/sprint/{sprintId}/issue` |
+
+| Tool                   | Method | Endpoint                                  |
+| ---------------------- | ------ | ----------------------------------------- |
+| get_agile_boards       | GET    | `/rest/agile/1.0/board`                   |
+| get_board_issues       | GET    | `/rest/agile/1.0/board/{boardId}/issue`   |
+| get_sprints_from_board | GET    | `/rest/agile/1.0/board/{boardId}/sprint`  |
+| get_sprint_issues      | GET    | `/rest/agile/1.0/sprint/{sprintId}/issue` |
 
 All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian.jira.plugins.jira-software-plugin"`.
 
@@ -1666,6 +1677,7 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 ### Task 10: Links and Epics tools (5 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/links/GetLinkTypesTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/links/CreateIssueLinkTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/links/CreateRemoteIssueLinkTool.java`
@@ -1673,13 +1685,14 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/epics/LinkToEpicTool.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint |
-|---|---|---|
-| get_link_types | GET | `/rest/api/2/issueLinkType` |
-| create_issue_link | POST | `/rest/api/2/issueLink` |
-| create_remote_issue_link | POST | `/rest/api/2/issue/{issueKey}/remotelink` |
-| remove_issue_link | DELETE | `/rest/api/2/issueLink/{linkId}` |
-| link_to_epic | PUT | `/rest/agile/1.0/epic/{epicKey}/issue` |
+
+| Tool                     | Method | Endpoint                                  |
+| ------------------------ | ------ | ----------------------------------------- |
+| get_link_types           | GET    | `/rest/api/2/issueLinkType`               |
+| create_issue_link        | POST   | `/rest/api/2/issueLink`                   |
+| create_remote_issue_link | POST   | `/rest/api/2/issue/{issueKey}/remotelink` |
+| remove_issue_link        | DELETE | `/rest/api/2/issueLink/{linkId}`          |
+| link_to_epic             | PUT    | `/rest/agile/1.0/epic/{epicKey}/issue`    |
 
 - [ ] **Step 1:** Create all 5 tool classes. Read upstream lines 1303-1482 for link tools, lines 1564-1692 for epic.
 - [ ] **Step 2:** Register in `ToolInitializer`
@@ -1691,6 +1704,7 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 ### Task 11: Projects/Versions and Users/Watchers tools (10 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/projects/GetProjectIssuesTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/projects/GetProjectVersionsTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/projects/GetProjectComponentsTool.java`
@@ -1702,17 +1716,18 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/users/RemoveWatcherTool.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint |
-|---|---|---|
-| get_project_issues | GET | `/rest/api/2/search?jql=project={projectKey}` |
-| get_project_versions | GET | `/rest/api/2/project/{projectKey}/versions` |
-| get_project_components | GET | `/rest/api/2/project/{projectKey}/components` |
-| create_version | POST | `/rest/api/2/version` |
-| batch_create_versions | POST | `/rest/api/2/version` (loop) |
-| get_user_profile | GET | `/rest/api/2/user?key={userKey}` or `?username={username}` |
-| get_issue_watchers | GET | `/rest/api/2/issue/{issueKey}/watchers` |
-| add_watcher | POST | `/rest/api/2/issue/{issueKey}/watchers` |
-| remove_watcher | DELETE | `/rest/api/2/issue/{issueKey}/watchers?username={username}` |
+
+| Tool                   | Method | Endpoint                                                    |
+| ---------------------- | ------ | ----------------------------------------------------------- |
+| get_project_issues     | GET    | `/rest/api/2/search?jql=project={projectKey}`               |
+| get_project_versions   | GET    | `/rest/api/2/project/{projectKey}/versions`                 |
+| get_project_components | GET    | `/rest/api/2/project/{projectKey}/components`               |
+| create_version         | POST   | `/rest/api/2/version`                                       |
+| batch_create_versions  | POST   | `/rest/api/2/version` (loop)                                |
+| get_user_profile       | GET    | `/rest/api/2/user?key={userKey}` or `?username={username}`  |
+| get_issue_watchers     | GET    | `/rest/api/2/issue/{issueKey}/watchers`                     |
+| add_watcher            | POST   | `/rest/api/2/issue/{issueKey}/watchers`                     |
+| remove_watcher         | DELETE | `/rest/api/2/issue/{issueKey}/watchers?username={username}` |
 
 - [ ] **Step 1:** Create all 10 tool classes (GetAllProjectsTool already exists from Task 6)
 - [ ] **Step 2:** Register in `ToolInitializer`
@@ -1724,18 +1739,20 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 ### Task 12: Attachments and Fields tools (4 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/attachments/DownloadAttachmentsTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/attachments/GetIssueImagesTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/fields/SearchFieldsTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/fields/GetFieldOptionsTool.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint |
-|---|---|---|
-| download_attachments | GET | `/rest/api/2/issue/{issueKey}?fields=attachment` then fetch each attachment URL |
-| get_issue_images | GET | Same as above, filter for image MIME types |
-| search_fields | GET | `/rest/api/2/field` |
-| get_field_options | GET | `/rest/api/2/field/{fieldId}/option` or `/rest/api/2/customFieldOption/{optionId}` |
+
+| Tool                 | Method | Endpoint                                                                           |
+| -------------------- | ------ | ---------------------------------------------------------------------------------- |
+| download_attachments | GET    | `/rest/api/2/issue/{issueKey}?fields=attachment` then fetch each attachment URL    |
+| get_issue_images     | GET    | Same as above, filter for image MIME types                                         |
+| search_fields        | GET    | `/rest/api/2/field`                                                                |
+| get_field_options    | GET    | `/rest/api/2/field/{fieldId}/option` or `/rest/api/2/customFieldOption/{optionId}` |
 
 - [ ] **Step 1:** Create all 4 tool classes
 - [ ] **Step 2:** Register in `ToolInitializer`
@@ -1747,6 +1764,7 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 ### Task 13: Service Desk, Forms, and Metrics tools (10 tools)
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/servicedesk/GetServiceDeskForProjectTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/servicedesk/GetServiceDeskQueuesTool.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/servicedesk/GetQueueIssuesTool.java`
@@ -1759,18 +1777,19 @@ All 4 tools require Jira Software: `requiredPluginKey()` returns `"com.atlassian
 - Create: `src/main/java/com/atlassian/mcp/plugin/tools/metrics/GetIssuesDevelopmentInfoTool.java`
 
 **REST endpoints:**
-| Tool | Method | Endpoint | Requires |
-|---|---|---|---|
-| get_service_desk_for_project | GET | `/rest/servicedeskapi/servicedesk/projectKey:{key}` | JSM |
-| get_service_desk_queues | GET | `/rest/servicedeskapi/servicedesk/{id}/queue` | JSM |
-| get_queue_issues | GET | `/rest/servicedeskapi/servicedesk/{id}/queue/{queueId}/issue` | JSM |
-| get_issue_sla | GET | `/rest/servicedeskapi/request/{issueKey}/sla` | JSM |
-| get_issue_proforma_forms | GET | `/rest/proforma/1/issue/{issueId}/form` | Proforma |
-| get_proforma_form_details | GET | `/rest/proforma/1/issue/{issueId}/form/{formId}` | Proforma |
-| update_proforma_form_answers | PUT | `/rest/proforma/1/issue/{issueId}/form/{formId}` | Proforma |
-| get_issue_dates | GET | `/rest/api/2/issue/{issueKey}?fields=created,updated,duedate,resolutiondate` | - |
-| get_issue_development_info | GET | `/rest/dev-status/latest/issue/detail?issueId={id}&applicationType=stash&dataType=repository` | - |
-| get_issues_development_info | GET | Same as above (batched) | - |
+
+| Tool                         | Method | Endpoint                                                                                      | Requires |
+| ---------------------------- | ------ | --------------------------------------------------------------------------------------------- | -------- |
+| get_service_desk_for_project | GET    | `/rest/servicedeskapi/servicedesk/projectKey:{key}`                                           | JSM      |
+| get_service_desk_queues      | GET    | `/rest/servicedeskapi/servicedesk/{id}/queue`                                                 | JSM      |
+| get_queue_issues             | GET    | `/rest/servicedeskapi/servicedesk/{id}/queue/{queueId}/issue`                                 | JSM      |
+| get_issue_sla                | GET    | `/rest/servicedeskapi/request/{issueKey}/sla`                                                 | JSM      |
+| get_issue_proforma_forms     | GET    | `/rest/proforma/1/issue/{issueId}/form`                                                       | Proforma |
+| get_proforma_form_details    | GET    | `/rest/proforma/1/issue/{issueId}/form/{formId}`                                              | Proforma |
+| update_proforma_form_answers | PUT    | `/rest/proforma/1/issue/{issueId}/form/{formId}`                                              | Proforma |
+| get_issue_dates              | GET    | `/rest/api/2/issue/{issueKey}?fields=created,updated,duedate,resolutiondate`                  | -        |
+| get_issue_development_info   | GET    | `/rest/dev-status/latest/issue/detail?issueId={id}&applicationType=stash&dataType=repository` | -        |
+| get_issues_development_info  | GET    | Same as above (batched)                                                                       | -        |
 
 Service desk tools: `requiredPluginKey()` returns `"com.atlassian.servicedesk"`
 Forms tools: `requiredPluginKey()` returns `"com.atlassian.proforma"`
@@ -1785,6 +1804,7 @@ Forms tools: `requiredPluginKey()` returns `"com.atlassian.proforma"`
 ### Task 14: Finalize ToolInitializer with all 46 tools
 
 **Files:**
+
 - Modify: `src/main/java/com/atlassian/mcp/plugin/tools/ToolInitializer.java`
 
 - [ ] **Step 1:** Update `ToolInitializer` to import and register all 46 tool classes across all categories. Remove the `// TODO` comment.
@@ -1802,12 +1822,12 @@ Forms tools: `requiredPluginKey()` returns `"com.atlassian.proforma"`
 ### Task 15: Admin configuration page
 
 **Files:**
+
 - Create: `src/main/java/com/atlassian/mcp/plugin/admin/AdminServlet.java`
 - Create: `src/main/java/com/atlassian/mcp/plugin/admin/ConfigResource.java`
 - Create: `src/main/resources/templates/admin.vm`
 - Create: `src/main/resources/css/admin.css`
 - Create: `src/main/resources/js/admin.js`
-
 - [ ] **Step 1: Write `AdminServlet.java`**
 
   ```java

@@ -16,14 +16,14 @@
 
 ## Key Commands (from CLAUDE.md + justfile — reference in every task)
 
-| Purpose | Command |
-|---------|---------|
-| Build (compile + JAR) | `just build` (= `atlas-package`) |
-| Unit tests (excludes e2e) | `just test` (= `atlas-mvn test -Dtest="!*E2E*"`) |
-| E2E vs live Confluence | `just e2e` (= `atlas-mvn test -Dtest="McpEndpointE2ETest" -DfailIfNoTests=false`) |
-| Build + deploy + e2e | `just deploy-and-test` |
-| Deploy JAR to UPM | `just deploy` |
-| Clean | `just clean` |
+| Purpose                   | Command                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| Build (compile + JAR)     | `just build` (= `atlas-package`)                                                  |
+| Unit tests (excludes e2e) | `just test` (= `atlas-mvn test -Dtest="!*E2E*"`)                                  |
+| E2E vs live Confluence    | `just e2e` (= `atlas-mvn test -Dtest="McpEndpointE2ETest" -DfailIfNoTests=false`) |
+| Build + deploy + e2e      | `just deploy-and-test`                                                            |
+| Deploy JAR to UPM         | `just deploy`                                                                     |
+| Clean                     | `just clean`                                                                      |
 
 **Build prerequisite (non-interactive shells):** `export JAVA_HOME="$(mise where java)"` (Temurin 21) before `atlas-mvn`/`just` — mise shims may be inactive. Env vars (`.credentials/confluence.env`) auto-load via mise.
 
@@ -35,32 +35,32 @@
 
 ## File Structure
 
-| Action | File | Responsibility |
-|--------|------|----------------|
-| Modify | `pom.xml` | SDK deps, OSGi embedding, slf4j pin, version bump |
-| Modify | `tools/McpTool.java` | SDK-aware default methods |
-| Modify | `tools/pages/{DeletePageTool,UpdatePageTool,ReplaceSectionTool}.java`, `tools/attachments/DeleteAttachmentTool.java` | `isDestructiveTool()` overrides |
-| Create | `rest/McpToolAdapter.java` | `McpTool` → `SyncToolSpecification` |
-| Create | `rest/ConfluenceAuthContextExtractor.java` | request → SDK transport context |
-| Modify | `tools/ToolRegistry.java` | `toSpecifications()` |
-| Create | `rest/McpBootstrap.java` | builds SDK transport + sync server |
-| Create | `rest/McpTransportFilter.java` | async servlet-filter owning the endpoint |
-| Create | `rest/ConfluenceIconConstants.java` | server-level logo data URI |
-| Create | `rest/BodySizeLimitFilter.java` | 1 MB cap on **actual bytes** |
-| Create | `rest/RateLimitFilter.java` | 120/min per-user / per-IP + `RateLimit-*` |
-| Create | `rest/AccessControlFilter.java` | auth + allowlist + `WWW-Authenticate` |
-| Create | `rest/SessionBindingFilter.java` | bind `MCP-Session-Id` to user |
-| Create | `rest/SecurityHeadersFilter.java` | `nosniff` / `no-store` / frame options |
-| Create | `rest/BufferedRequestWrapper.java` | re-readable request body |
-| Create | `rest/CapturingResponseWrapper.java` | capture session id + status |
-| Modify | `rest/RateLimiter.java` | add `Snapshot` + `snapshot()` |
-| Modify | `rest/OAuthAnonymousFilter.java` | `/plugins/servlet/mcp` passthrough, OIDC well-known, protected-resource URL |
-| Modify | `rest/OAuthServlet.java` | OIDC discovery route + CIMD wiring |
-| Create | `rest/oauth/CimdValidator.java` | CIMD fetch + SSRF defenses + bounded cache |
-| Modify | `resources/atlassian-plugin.xml` | drop REST module, add 6 filters |
-| Delete | `JsonRpcHandler.java`, `rest/McpResource.java` | replaced by SDK |
-| Modify | `src/test/.../e2e/McpEndpointE2ETest.java` | rewrite vs SDK sync client |
-| Modify | `CLAUDE.md`, `README`, `docs/HANDOFF-jakarta-mcp-sdk-migration.md` | docs |
+| Action | File                                                                                                                 | Responsibility                                                              |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Modify | `pom.xml`                                                                                                            | SDK deps, OSGi embedding, slf4j pin, version bump                           |
+| Modify | `tools/McpTool.java`                                                                                                 | SDK-aware default methods                                                   |
+| Modify | `tools/pages/{DeletePageTool,UpdatePageTool,ReplaceSectionTool}.java`, `tools/attachments/DeleteAttachmentTool.java` | `isDestructiveTool()` overrides                                             |
+| Create | `rest/McpToolAdapter.java`                                                                                           | `McpTool` → `SyncToolSpecification`                                         |
+| Create | `rest/ConfluenceAuthContextExtractor.java`                                                                           | request → SDK transport context                                             |
+| Modify | `tools/ToolRegistry.java`                                                                                            | `toSpecifications()`                                                        |
+| Create | `rest/McpBootstrap.java`                                                                                             | builds SDK transport + sync server                                          |
+| Create | `rest/McpTransportFilter.java`                                                                                       | async servlet-filter owning the endpoint                                    |
+| Create | `rest/ConfluenceIconConstants.java`                                                                                  | server-level logo data URI                                                  |
+| Create | `rest/BodySizeLimitFilter.java`                                                                                      | 1 MB cap on **actual bytes**                                                |
+| Create | `rest/RateLimitFilter.java`                                                                                          | 120/min per-user / per-IP + `RateLimit-*`                                   |
+| Create | `rest/AccessControlFilter.java`                                                                                      | auth + allowlist + `WWW-Authenticate`                                       |
+| Create | `rest/SessionBindingFilter.java`                                                                                     | bind `MCP-Session-Id` to user                                               |
+| Create | `rest/SecurityHeadersFilter.java`                                                                                    | `nosniff` / `no-store` / frame options                                      |
+| Create | `rest/BufferedRequestWrapper.java`                                                                                   | re-readable request body                                                    |
+| Create | `rest/CapturingResponseWrapper.java`                                                                                 | capture session id + status                                                 |
+| Modify | `rest/RateLimiter.java`                                                                                              | add `Snapshot` + `snapshot()`                                               |
+| Modify | `rest/OAuthAnonymousFilter.java`                                                                                     | `/plugins/servlet/mcp` passthrough, OIDC well-known, protected-resource URL |
+| Modify | `rest/OAuthServlet.java`                                                                                             | OIDC discovery route + CIMD wiring                                          |
+| Create | `rest/oauth/CimdValidator.java`                                                                                      | CIMD fetch + SSRF defenses + bounded cache                                  |
+| Modify | `resources/atlassian-plugin.xml`                                                                                     | drop REST module, add 6 filters                                             |
+| Delete | `JsonRpcHandler.java`, `rest/McpResource.java`                                                                       | replaced by SDK                                                             |
+| Modify | `src/test/.../e2e/McpEndpointE2ETest.java`                                                                           | rewrite vs SDK sync client                                                  |
+| Modify | `CLAUDE.md`, `README`, `docs/HANDOFF-jakarta-mcp-sdk-migration.md`                                                   | docs                                                                        |
 
 ---
 
@@ -75,7 +75,9 @@ In [pom.xml](pom.xml), change:
 ```xml
     <version>1.1.2</version>
 ```
+
 to:
+
 ```xml
     <version>1.2.0</version>
 ```
@@ -244,6 +246,7 @@ In each file below, add this method inside the class body (next to the existing 
 ```
 
 Files:
+
 - [tools/pages/DeletePageTool.java](src/main/java/com/atlassian/mcp/plugin/tools/pages/DeletePageTool.java)
 - [tools/pages/UpdatePageTool.java](src/main/java/com/atlassian/mcp/plugin/tools/pages/UpdatePageTool.java)
 - [tools/pages/ReplaceSectionTool.java](src/main/java/com/atlassian/mcp/plugin/tools/pages/ReplaceSectionTool.java)
@@ -1476,7 +1479,9 @@ In [rest/OAuthAnonymousFilter.java](src/main/java/com/atlassian/mcp/plugin/rest/
         // Everything else (mcp-oauth servlet) — pass through
         chain.doFilter(request, response);
 ```
+
 to:
+
 ```java
         // /plugins/servlet/mcp — let it pass Confluence's login layer so it reaches the MCP
         // filter chain, where AccessControlFilter returns a JSON 401 + WWW-Authenticate rather
@@ -1505,6 +1510,7 @@ git rm src/test/java/com/atlassian/mcp/plugin/JsonRpcHandlerTest.java
 In [resources/atlassian-plugin.xml](src/main/resources/atlassian-plugin.xml):
 
 (a) Delete the MCP REST module (lines ~18-22):
+
 ```xml
     <!-- MCP REST endpoint -->
     <rest key="mcp-rest" path="/mcp" version="1.0">
@@ -1514,6 +1520,7 @@ In [resources/atlassian-plugin.xml](src/main/resources/atlassian-plugin.xml):
 ```
 
 (b) Update the anonymous filter's url-patterns (lines ~49-56) — drop `/rest/mcp/1.0`, add `/plugins/servlet/mcp`:
+
 ```xml
     <!-- OAuth + MCP: bypass Confluence login filter for the OAuth servlet, well-known, and
          the MCP transport endpoint (anonymous reachability only — real auth at AccessControlFilter) -->
@@ -1528,6 +1535,7 @@ In [resources/atlassian-plugin.xml](src/main/resources/atlassian-plugin.xml):
 ```
 
 (c) Add the six-filter security chain, ascending by weight, all scoped to `/plugins/servlet/mcp`. These run at default location (AFTER Confluence authentication, so `AuthenticatedUserThreadLocal` is populated) — NOT `before-login`. Insert after the anon-filter block (spec §6.3):
+
 ```xml
     <!-- MCP security chain (spec §6.3) — ascending weight, default location (post-auth).
          Origin is handled by the SDK validator inside the transport, so it is not a filter. -->
@@ -2030,6 +2038,7 @@ In [rest/OAuthServlet.java](src/main/java/com/atlassian/mcp/plugin/rest/OAuthSer
 ```
 
 Also add `client_id_metadata_document_supported` to the existing `/metadata` response for consistency — in the `/metadata` block, after the `scopes_supported` line (line ~118), add:
+
 ```java
             meta.put("client_id_metadata_document_supported", true);
 ```
@@ -2039,18 +2048,23 @@ Also add `client_id_metadata_document_supported` to the existing `/metadata` res
 In [rest/OAuthServlet.java](src/main/java/com/atlassian/mcp/plugin/rest/OAuthServlet.java):
 
 (a) Add a `CimdValidator` field + import:
+
 ```java
 import com.atlassian.mcp.plugin.rest.oauth.CimdValidator;
 ```
+
 ```java
     private final CimdValidator cimdValidator = new CimdValidator();
 ```
 
 (b) Fix the protected-resource resource URL — change line ~92 from:
+
 ```java
             meta.put("resource", getBaseUrl() + "/rest/mcp/1.0/");
 ```
+
 to:
+
 ```java
             meta.put("resource", getBaseUrl() + "/plugins/servlet/mcp");
 ```
@@ -2076,7 +2090,9 @@ to:
             return;
         }
 ```
+
 to:
+
 ```java
         // Resolve the set of allowed redirect URIs from either a DCR-registered client OR a
         // CIMD client_id (an HTTPS URL whose metadata document lists its redirect_uris, §6.5).
@@ -2119,16 +2135,19 @@ The downstream `createPendingAuth(...)` + redirect-to-Confluence logic (lines 25
 
 - [ ] **Step 6: Serve `/.well-known/openid-configuration` from the anonymous filter + fix protected-resource URL**
 
-In [rest/OAuthAnonymousFilter.java](src/main/java/com/atlassian/mcp/plugin/rest/OAuthAnonymousFilter.java) `handleWellKnown` — servlets can't serve at the context root, so the filter must serve the OIDC well-known path too (spec §6.5). 
+In [rest/OAuthAnonymousFilter.java](src/main/java/com/atlassian/mcp/plugin/rest/OAuthAnonymousFilter.java) `handleWellKnown` — servlets can't serve at the context root, so the filter must serve the OIDC well-known path too (spec §6.5).
 
 (a) Broaden the well-known matcher in `doFilter` — change:
+
 ```java
         if (uri.contains("/.well-known/oauth-")) {
             handleWellKnown(uri, resp);
             return;
         }
 ```
+
 to:
+
 ```java
         if (uri.contains("/.well-known/oauth-") || uri.contains("/.well-known/openid-configuration")) {
             handleWellKnown(uri, resp);
@@ -2137,16 +2156,21 @@ to:
 ```
 
 (b) In `handleWellKnown`, fix the protected-resource URL and add the OIDC branch. Change the protected-resource line from:
+
 ```java
             resp.getWriter().write("{\"resource\":\"" + baseUrl + "/rest/mcp/1.0/\","
                     + "\"authorization_servers\":[\"" + oauthBase + "\"]}");
 ```
+
 to:
+
 ```java
             resp.getWriter().write("{\"resource\":\"" + baseUrl + "/plugins/servlet/mcp\","
                     + "\"authorization_servers\":[\"" + oauthBase + "\"]}");
 ```
+
 And add an OIDC branch — insert before the final `else { 404 }`:
+
 ```java
         } else if (uri.contains("openid-configuration")) {
             resp.getWriter().write("{\"issuer\":\"" + oauthBase + "\","
@@ -2236,6 +2260,7 @@ Add `import java.time.Duration;` (already imported in the current file — confi
 ```
 
 In `@BeforeClass`, after the `Assume` guards, initialize + connect the client:
+
 ```java
         client = newClient();
         InitializeResult init = client.initialize();
@@ -2247,6 +2272,7 @@ In `@BeforeClass`, after the `Assume` guards, initialize + connect the client:
 - [ ] **Step 3: Port the protocol / tools-list / read-tool / CRUD tests to the SDK client**
 
 Convert each existing `@Test` from raw JSON-RPC POSTs to SDK calls, preserving coverage (spec §8):
+
 - **Protocol:** `client.initialize()` returns server info; `client.ping()` succeeds.
 - **Tools list parity:** `ListToolsResult r = client.listTools(); assertEquals(28, r.tools().size());` and assert tool names match the registry.
 - **Schema validation:** every `Tool.inputSchema()` is non-null and contains `"$schema"` = 2020-12.
@@ -2258,6 +2284,7 @@ Mirror the Jira e2e's structure for each (`../jira-mcp-plugin/.../e2e/McpEndpoin
 - [ ] **Step 4: Add the compliance-item assertions**
 
 New tests (spec §8):
+
 - **Tool annotations correct:** for `search`, `Tool.annotations().readOnlyHint()` is true; for `update_page`, `replace_section`, `delete_page`, `destructiveHint()` is true; for `append_to_page`, `create_page`, `destructiveHint()` is false.
 - **Capabilities correct:** `InitializeResult.capabilities()` declares `tools` (with `listChanged=false`) and `logging`, and does NOT declare `resources` or `completions`.
 
@@ -2278,7 +2305,9 @@ New tests (spec §8):
 - [ ] **Step 5: Add the security acceptance tests (mandatory — spec §8 a–f)**
 
 Keep these as raw `HttpClient` calls (they assert HTTP-level behavior the SDK client hides). Reuse the existing `HttpClient HTTP` field:
+
 - **(a) Auth routing (§4.1):** an unauthenticated POST and an invalid-PAT POST to `/plugins/servlet/mcp` return a JSON body with status 401 and a `WWW-Authenticate` header — NOT a 302 redirect to a login page. A valid-PAT POST returns a JSON/MCP response.
+
 ```java
     @Test
     public void unauthenticatedReturnsJson401NotLoginRedirect() throws Exception {
@@ -2294,10 +2323,12 @@ Keep these as raw `HttpClient` calls (they assert HTTP-level behavior the SDK cl
         assertFalse("must not be a login redirect", resp.body().toLowerCase().contains("<html"));
     }
 ```
+
 - **(b) Body cap (§6.3):** an oversized fixed-length body, an oversized chunked body, and an oversized no-`Content-Length` body each return 413. (Build a >1 MB JSON payload; for chunked, omit `Content-Length` via a streaming `BodyPublisher`.)
 - **(c) Anonymous rate limit (§6.3):** >120 rapid unauthenticated/invalid-token requests eventually return 429 with `RateLimit-*` headers (per-IP bucket).
 - **(d) CIMD SSRF (§6.5):** an authorize request with `client_id=https://localhost/...`, `=https://10.0.0.1/...`, and `=https://169.254.169.254/...` each return a 400 invalid_client — not a fetch attempt. (Hits `/plugins/servlet/mcp-oauth/authorize`.)
 - **(e) CIMD cache bound (§6.5):** covered by a `CimdValidator` unit assertion that many distinct URLs keep `cacheSize() <= 1000`; add it to `CimdValidatorTest`:
+
 ```java
     @Test
     public void cacheStaysBounded() {
@@ -2308,6 +2339,7 @@ Keep these as raw `HttpClient` calls (they assert HTTP-level behavior the SDK cl
         assertTrue("cache must stay bounded", validator.cacheSize() <= 1000);
     }
 ```
+
 - **(f) OIDC well-known (§6.5):** both `GET /.well-known/openid-configuration` and `GET /plugins/servlet/mcp-oauth/openid-configuration` return the discovery document (200, JSON with `issuer`), not a 404 or login redirect.
 
 - [ ] **Step 6: Run unit tests (CIMD bound test runs offline)**
@@ -2340,22 +2372,26 @@ git commit -m "test(mcp-sdk): rewrite e2e against SDK sync client + security acc
 - [ ] **Step 1: Update `CLAUDE.md`**
 
 In [CLAUDE.md](CLAUDE.md):
+
 - Change the MCP endpoint from `POST /rest/mcp/1.0/` to `POST /plugins/servlet/mcp` everywhere (the "Key Identifiers" table, "MCP Protocol — Streamable HTTP" section, and the architecture table).
 - Replace the "MCP endpoint | JAX-RS at `/rest/mcp/1.0/`" architecture row with: "MCP endpoint | MCP Java SDK streamable transport, mounted as an async `<servlet-filter>` at `/plugins/servlet/mcp`".
 - Add a "Hard-Won Lesson": **Async transport needs a JVM flag** — the SDK transport calls `request.startAsync()`, which only works on `<servlet-filter>` modules with `-Datlassian.plugins.filter.async.default=true` set on the Confluence JVM (verified in `atlassian-plugins-servlet-9.0.0-m002`).
 - Add a "Hard-Won Lesson": **Security is a filter chain, not inline** — body-size/rate-limit/access-control/session-binding/security-headers are discrete `<servlet-filter>` modules by ascending weight; Origin is validated by the SDK's `DefaultServerTransportSecurityValidator` inside the transport.
 - Update the "Tools — 28 Total" interface note: tools are adapted to SDK `SyncToolSpecification` via `McpToolAdapter`; `ToolRegistry.toSpecifications()` is the registration entry point.
-
 - [ ] **Step 2: Update the admin UI endpoint (user-facing — ships a live config snippet)**
 
 The admin page builds a copy-paste MCP client config pointing at the old REST route. In [src/main/resources/js/admin.js](src/main/resources/js/admin.js) line ~185, change:
+
 ```javascript
             var mcpUrl = baseUrl + "/rest/mcp/1.0/";
 ```
+
 to:
+
 ```javascript
             var mcpUrl = baseUrl + "/plugins/servlet/mcp";
 ```
+
 (The version bump to 1.2.0 in Task 1 busts the web-resource cache, so browsers load the updated JS.)
 
 - [ ] **Step 3: Update the README (if present)**

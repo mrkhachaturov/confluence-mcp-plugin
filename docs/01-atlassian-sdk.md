@@ -14,7 +14,7 @@ Framework 2) architecture and run inside the host application's JVM as OSGi bund
 
 ## Installation
 
-Download from: https://developer.atlassian.com/server/framework/atlassian-sdk/
+Download from: <https://developer.atlassian.com/server/framework/atlassian-sdk/>
 
 ```bash
 # macOS (Homebrew)
@@ -30,24 +30,24 @@ atlas-version
 AMPS (Atlassian Maven Plugin Suite) and the Atlassian SDK are now **separate products**
 with distinct version numbers.
 
-| AMPS Version | Key Changes |
-|---|---|
-| 9.12.4 | Latest (April 2026), Bitbucket 11 support |
-| 9.7.x | QuickReload 6.2.0+, recommended for current dev |
-| 9.6.x | 4 new `<product>` element properties |
-| 9.3.0 | Updated Tomcat mappings for Jira 11, Confluence 10 |
-| 9.0.0 | JVM specification capability, Crowd 6.0.0 |
-| 8.x | Older series, still supported |
-| 6.x | Legacy (Jira 7.x era) |
+| AMPS Version | Key Changes                                        |
+| ------------ | -------------------------------------------------- |
+| 9.12.4       | Latest (April 2026), Bitbucket 11 support          |
+| 9.7.x        | QuickReload 6.2.0+, recommended for current dev    |
+| 9.6.x        | 4 new `<product>` element properties               |
+| 9.3.0        | Updated Tomcat mappings for Jira 11, Confluence 10 |
+| 9.0.0        | JVM specification capability, Crowd 6.0.0          |
+| 8.x          | Older series, still supported                      |
+| 6.x          | Legacy (Jira 7.x era)                              |
 
 ### Jira Version Targets
 
-| Jira Version | Java | Notes |
-|---|---|---|
-| 9.12 LTS | Java 11 | Current Long Term Support |
-| 10.3 LTS | Java 17 | Jakarta EE migration |
-| 10.7.4 | Java 17 | Your running version |
-| 11.x | Java 17+ | Upcoming |
+| Jira Version | Java     | Notes                     |
+| ------------ | -------- | ------------------------- |
+| 9.12 LTS     | Java 11  | Current Long Term Support |
+| 10.3 LTS     | Java 17  | Jakarta EE migration      |
+| 10.7.4       | Java 17  | Your running version      |
+| 11.x         | Java 17+ | Upcoming                  |
 
 ## Project Creation
 
@@ -67,7 +67,7 @@ atlas-create-jira-plugin-module
 
 ### Generated Structure
 
-```
+```text
 my-jira-plugin/
 ├── pom.xml
 ├── src/
@@ -118,16 +118,16 @@ my-jira-plugin/
 
 ## Key SDK Commands
 
-| Command | Purpose |
-|---------|---------|
-| `atlas-run` | Start Jira with your plugin installed (localhost:2990/jira) |
-| `atlas-debug` | Same as atlas-run with remote debugging enabled |
-| `atlas-package` | Build the plugin JAR/OBR without running |
-| `atlas-clean` | Clean build artifacts |
-| `atlas-create-jira-plugin` | Create new Jira plugin project |
-| `atlas-create-jira-plugin-module` | Add module to existing plugin |
-| `atlas-unit-test` | Run unit tests |
-| `atlas-integration-test` | Run integration tests |
+| Command                           | Purpose                                                     |
+| --------------------------------- | ----------------------------------------------------------- |
+| `atlas-run`                       | Start Jira with your plugin installed (localhost:2990/jira) |
+| `atlas-debug`                     | Same as atlas-run with remote debugging enabled             |
+| `atlas-package`                   | Build the plugin JAR/OBR without running                    |
+| `atlas-clean`                     | Clean build artifacts                                       |
+| `atlas-create-jira-plugin`        | Create new Jira plugin project                              |
+| `atlas-create-jira-plugin-module` | Add module to existing plugin                               |
+| `atlas-unit-test`                 | Run unit tests                                              |
+| `atlas-integration-test`          | Run integration tests                                       |
 
 ### atlas-run Options
 
@@ -205,7 +205,7 @@ atlas-unit-test -Dtest=MyTest
 
 ## References
 
-- SDK Documentation Hub: https://developer.atlassian.com/server/framework/atlassian-sdk/
-- Jira Platform Dev Docs: https://developer.atlassian.com/server/jira/platform/
-- AMPS Release Notes: https://developer.atlassian.com/server/framework/atlassian-sdk/amps-sdk-release-notes/
-- AMPS Build Config Reference: https://developer.atlassian.com/server/framework/atlassian-sdk/amps-build-configuration-reference/
+- SDK Documentation Hub: <https://developer.atlassian.com/server/framework/atlassian-sdk/>
+- Jira Platform Dev Docs: <https://developer.atlassian.com/server/jira/platform/>
+- AMPS Release Notes: <https://developer.atlassian.com/server/framework/atlassian-sdk/amps-sdk-release-notes/>
+- AMPS Build Config Reference: <https://developer.atlassian.com/server/framework/atlassian-sdk/amps-build-configuration-reference/>

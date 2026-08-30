@@ -12,12 +12,12 @@
 
 [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that runs inside your Confluence Data Center JVM. Claude Code, Cursor, and other MCP-compatible tools connect to it and work with pages, spaces, comments, labels, attachments, and more. Everything stays inside your infrastructure.
 
-| | Scope | Meaning |
-|---|-------|---------|
-| 🔌 | Plugin | Single JAR, installed via UPM, runs inside the Confluence JVM |
-| 🔐 | Auth | OAuth 2.0 (browser consent) + Personal Access Tokens |
-| 🛠️ | Tools | 23 tools mirrored 1:1 from [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) upstream |
-| 📡 | Transport | Streamable HTTP (MCP spec 2025-06-18) with SSE streaming |
+|     | Scope     | Meaning                                                                                         |
+| --- | --------- | ----------------------------------------------------------------------------------------------- |
+| 🔌  | Plugin    | Single JAR, installed via UPM, runs inside the Confluence JVM                                   |
+| 🔐  | Auth      | OAuth 2.0 (browser consent) + Personal Access Tokens                                            |
+| 🛠️  | Tools     | 23 tools mirrored 1:1 from [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) upstream |
+| 📡  | Transport | Streamable HTTP (MCP spec 2025-06-18) with SSE streaming                                        |
 
 > [!IMPORTANT]
 > This plugin runs entirely inside Confluence. No data leaves your infrastructure.
@@ -83,14 +83,14 @@ On first connection, click Authenticate, consent on the Confluence page, and you
 <details>
 <summary>23 tools across 6 categories (click to expand)</summary>
 
-| | Category | Tools | Count |
-|---|----------|-------|:-----:|
-| 📄 | Pages | `search`, `get_page`, `get_page_children`, `create_page`, `update_page`, `delete_page`, `move_page`, `get_page_history`, `get_page_diff` | 9 |
-| 💬 | Comments | `get_comments`, `add_comment`, `reply_to_comment` | 3 |
-| 🏷️ | Labels | `get_labels`, `add_label` | 2 |
-| 📎 | Attachments | `get_attachments`, `upload_attachment`, `upload_attachments`, `download_attachment`, `download_content_attachments`, `delete_attachment`, `get_page_images` | 7 |
-| 👤 | Users | `search_user` | 1 |
-| 📊 | Analytics | `get_page_views` (Cloud-only) | 1 |
+|     | Category    | Tools                                                                                                                                                       | Count |
+| --- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | :---: |
+| 📄  | Pages       | `search`, `get_page`, `get_page_children`, `create_page`, `update_page`, `delete_page`, `move_page`, `get_page_history`, `get_page_diff`                    |   9   |
+| 💬  | Comments    | `get_comments`, `add_comment`, `reply_to_comment`                                                                                                           |   3   |
+| 🏷️  | Labels      | `get_labels`, `add_label`                                                                                                                                   |   2   |
+| 📎  | Attachments | `get_attachments`, `upload_attachment`, `upload_attachments`, `download_attachment`, `download_content_attachments`, `delete_attachment`, `get_page_images` |   7   |
+| 👤  | Users       | `search_user`                                                                                                                                               |   1   |
+| 📊  | Analytics   | `get_page_views` (Cloud-only)                                                                                                                               |   1   |
 
 </details>
 
@@ -118,11 +118,11 @@ graph LR
     style RESULT3 fill:#0f766e,color:#fff
 ```
 
-| | Method | Behavior |
-|---|--------|----------|
-| 📨 | POST | JSON-RPC request → JSON response |
-| 📡 | GET | SSE stream for server-initiated notifications (requires `MCP-Session-Id`) |
-| 🗑️ | DELETE | Close session |
+|     | Method | Behavior                                                                  |
+| --- | ------ | ------------------------------------------------------------------------- |
+| 📨  | POST   | JSON-RPC request → JSON response                                          |
+| 📡  | GET    | SSE stream for server-initiated notifications (requires `MCP-Session-Id`) |
+| 🗑️  | DELETE | Close session                                                             |
 
 Sessions are tracked via the `MCP-Session-Id` header, assigned on `initialize`.
 
@@ -145,11 +145,11 @@ graph LR
     style PAGE fill:#10b981,color:#fff
 ```
 
-| | Format | Who uses it | What happens |
-|---|--------|------------|--------------|
-| 📝 | `markdown` (default) | AI agents | Converted to XHTML via [flexmark-java](https://github.com/vsch/flexmark-java) with GFM tables, strikethrough, task lists, autolinks |
-| 📖 | `wiki` | Confluence power users | Passed to API as wiki markup, Confluence converts server-side |
-| 🔧 | `storage` | Programmatic use | Passed as-is (must be valid Confluence XHTML) |
+|     | Format               | Who uses it            | What happens                                                                                                                        |
+| --- | -------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 📝  | `markdown` (default) | AI agents              | Converted to XHTML via [flexmark-java](https://github.com/vsch/flexmark-java) with GFM tables, strikethrough, task lists, autolinks |
+| 📖  | `wiki`               | Confluence power users | Passed to API as wiki markup, Confluence converts server-side                                                                       |
+| 🔧  | `storage`            | Programmatic use       | Passed as-is (must be valid Confluence XHTML)                                                                                       |
 
 **Supported Markdown features:** headings, bold/italic, links, images, ordered/unordered lists, tables, code blocks (with language), blockquotes, strikethrough, task lists, autolinks.
 
@@ -191,18 +191,18 @@ Create a PAT in Confluence (Profile > Personal Access Tokens) and configure your
 
 The plugin runs inside the Confluence JVM. No data leaves your infrastructure. It uses Confluence's own OAuth 2.0 and PAT mechanisms, so there are no separate credentials and no API keys to external services. The same Confluence permissions apply: users can only access spaces and pages they already have access to.
 
-| | Concern | How it's handled |
-|---|---------|-----------------|
-| 🏠 | Data residency | Runs inside Confluence JVM, no outbound connections |
-| 🔐 | Authentication | Confluence's own OAuth 2.0 and PATs |
-| 🔒 | Authorization | Same Confluence permissions, same space access |
-| 👥 | Admin control | Group and user allowlists, per-tool enable/disable, read-only mode |
-| ⚡ | Rate limiting | IP-based (register 5/min, token 20/min, MCP 120/min) |
-| 📏 | Body limits | 1MB for MCP, 64KB for register, 8KB for token |
-| 🔑 | PKCE | S256 enforced on all OAuth flows |
-| 🌐 | Origin validation | `Origin` header checked per MCP spec (DNS rebinding protection) |
-| 📋 | Security logging | `[MCP-SEC]` prefix for incident response |
-| 🔗 | Open redirect | `redirect_uri` validated against registered URIs |
+|     | Concern           | How it's handled                                                   |
+| --- | ----------------- | ------------------------------------------------------------------ |
+| 🏠  | Data residency    | Runs inside Confluence JVM, no outbound connections                |
+| 🔐  | Authentication    | Confluence's own OAuth 2.0 and PATs                                |
+| 🔒  | Authorization     | Same Confluence permissions, same space access                     |
+| 👥  | Admin control     | Group and user allowlists, per-tool enable/disable, read-only mode |
+| ⚡  | Rate limiting     | IP-based (register 5/min, token 20/min, MCP 120/min)               |
+| 📏  | Body limits       | 1MB for MCP, 64KB for register, 8KB for token                      |
+| 🔑  | PKCE              | S256 enforced on all OAuth flows                                   |
+| 🌐  | Origin validation | `Origin` header checked per MCP spec (DNS rebinding protection)    |
+| 📋  | Security logging  | `[MCP-SEC]` prefix for incident response                           |
+| 🔗  | Open redirect     | `redirect_uri` validated against registered URIs                   |
 
 > [!CAUTION]
 > The plugin makes localhost HTTP calls to Confluence's own REST API. No outbound network connections are made. Verify this by checking your firewall logs after installation.
@@ -213,12 +213,12 @@ The plugin runs inside the Confluence JVM. No data leaves your infrastructure. I
 
 Access via Confluence Admin > MCP Server > MCP Configuration.
 
-| | Tab | What |
-|---|-----|------|
-| ⚙️ | General | Enable/disable MCP, read-only mode, base URL override |
-| 👥 | Access Control | Allowed groups + individual users (empty = everyone) |
-| 🛠️ | Tools | Click-to-toggle tool list with search filter |
-| 🔐 | OAuth | Client ID/Secret, status, callback URL, user config snippet |
+|     | Tab            | What                                                        |
+| --- | -------------- | ----------------------------------------------------------- |
+| ⚙️  | General        | Enable/disable MCP, read-only mode, base URL override       |
+| 👥  | Access Control | Allowed groups + individual users (empty = everyone)        |
+| 🛠️  | Tools          | Click-to-toggle tool list with search filter                |
+| 🔐  | OAuth          | Client ID/Secret, status, callback URL, user config snippet |
 
 ---
 
@@ -236,12 +236,12 @@ Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also removed.
 
 ## 📋 Prerequisites
 
-| | Tool | Purpose |
-|---|------|---------|
-| ☕ | Java 21 | Runtime (via mise) — Confluence 10.x requires it |
-| 🧰 | Atlassian Plugin SDK | `atlas-mvn` for local builds |
-| ⚡ | `just` | Task runner |
-| 🔧 | `mise` | Tool version manager + env var loader |
+|     | Tool                 | Purpose                                          |
+| --- | -------------------- | ------------------------------------------------ |
+| ☕  | Java 21              | Runtime (via mise) — Confluence 10.x requires it |
+| 🧰  | Atlassian Plugin SDK | `atlas-mvn` for local builds                     |
+| ⚡  | `just`               | Task runner                                      |
+| 🔧  | `mise`               | Tool version manager + env var loader            |
 
 ## 🔨 Building from source
 
@@ -250,15 +250,16 @@ Search highlight markers (`@@@hl@@@`, `@@@endhl@@@`) are also removed.
 mise trust && mise install
 
 # 🏗️ Build
-just build
+mise run build
 
-# 🚀 Build + deploy + run e2e tests
-just deploy-and-test
+# 🚀 Deploy, then run e2e tests against it
+mise run deploy && mise run test:e2e
 
 # 📋 Or step by step
-just deploy              # build + upload to Confluence UPM
-just e2e                 # run e2e tests against live Confluence
-just codegen             # regenerate tools from upstream Python definitions
+mise run deploy          # clean + build + upload to Confluence UPM
+mise run test            # unit tests
+mise run test:e2e        # e2e tests against live Confluence
+mise run lint:fix        # formatters and linters
 ```
 
 ---

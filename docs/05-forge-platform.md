@@ -16,15 +16,15 @@ in a sandboxed serverless environment.
 
 ## Forge vs Connect vs P2
 
-| Aspect | Forge | Connect | P2 (Server/DC) |
-|--------|-------|---------|-----------------|
-| **Target** | Cloud only | Cloud only | Server/DC only |
-| **Language** | JavaScript (Node.js) | Any (webhook-based) | Java |
-| **Hosting** | Atlassian-managed | Developer-managed | Runs inside Jira JVM |
-| **Runtime** | Sandboxed serverless | External server | OSGi bundle |
-| **Install** | Marketplace | Marketplace | UPM upload or Marketplace |
-| **Security** | Atlassian-controlled | Developer responsible | Developer responsible |
-| **Database** | Forge Storage API | External | Active Objects or direct |
+| Aspect       | Forge                | Connect               | P2 (Server/DC)            |
+| ------------ | -------------------- | --------------------- | ------------------------- |
+| **Target**   | Cloud only           | Cloud only            | Server/DC only            |
+| **Language** | JavaScript (Node.js) | Any (webhook-based)   | Java                      |
+| **Hosting**  | Atlassian-managed    | Developer-managed     | Runs inside Jira JVM      |
+| **Runtime**  | Sandboxed serverless | External server       | OSGi bundle               |
+| **Install**  | Marketplace          | Marketplace           | UPM upload or Marketplace |
+| **Security** | Atlassian-controlled | Developer responsible | Developer responsible     |
+| **Database** | Forge Storage API    | External              | Active Objects or direct  |
 
 ## Forge CLI
 
@@ -44,16 +44,16 @@ forge login
 
 ### Core Commands
 
-| Command | Purpose |
-|---------|---------|
-| `forge create` | Create new Forge app (interactive) |
-| `forge deploy` | Deploy to Atlassian infrastructure |
-| `forge deploy -e staging` | Deploy to staging |
-| `forge deploy -e production` | Deploy to production |
-| `forge install` | Install on an Atlassian site |
-| `forge install --upgrade` | Upgrade existing installation |
-| `forge tunnel` | Local dev tunnel (hot-reload) |
-| `forge lint` | Lint app code |
+| Command                      | Purpose                            |
+| ---------------------------- | ---------------------------------- |
+| `forge create`               | Create new Forge app (interactive) |
+| `forge deploy`               | Deploy to Atlassian infrastructure |
+| `forge deploy -e staging`    | Deploy to staging                  |
+| `forge deploy -e production` | Deploy to production               |
+| `forge install`              | Install on an Atlassian site       |
+| `forge install --upgrade`    | Upgrade existing installation      |
+| `forge tunnel`               | Local dev tunnel (hot-reload)      |
+| `forge lint`                 | Lint app code                      |
 
 ### Development Workflow
 
@@ -68,7 +68,7 @@ forge tunnel          # Local dev with hot-reload
 
 ## App Structure
 
-```
+```text
 my-app/
 ├── manifest.yml      # App configuration
 ├── package.json
@@ -113,24 +113,24 @@ resources:
 
 ## Jira Modules Available in Forge
 
-| Module | Key | Purpose |
-|--------|-----|---------|
-| Issue Panel | `jira:issuePanel` | Panel in issue detail view |
-| Issue Context | `jira:issueContext` | Context section in issue view |
-| Issue Glance | `jira:issueGlance` | Glance panel on issues |
-| Issue Action | `jira:issueAction` | Action in issue menu |
-| Project Page | `jira:projectPage` | Custom page in a project |
-| Global Page | `jira:globalPage` | Global page across Jira |
-| Admin Page | `jira:adminPage` | Page in Jira admin |
-| Dashboard Gadget | `jira:dashboardGadget` | Dashboard widget |
-| Custom Field | `jira:customField` | Custom issue fields |
-| Workflow Condition | `jira:workflowCondition` | Workflow transition condition |
-| Workflow Validator | `jira:workflowValidator` | Workflow transition validation |
-| Workflow Post Function | `jira:workflowPostFunction` | Post-transition action |
+| Module                 | Key                         | Purpose                        |
+| ---------------------- | --------------------------- | ------------------------------ |
+| Issue Panel            | `jira:issuePanel`           | Panel in issue detail view     |
+| Issue Context          | `jira:issueContext`         | Context section in issue view  |
+| Issue Glance           | `jira:issueGlance`          | Glance panel on issues         |
+| Issue Action           | `jira:issueAction`          | Action in issue menu           |
+| Project Page           | `jira:projectPage`          | Custom page in a project       |
+| Global Page            | `jira:globalPage`           | Global page across Jira        |
+| Admin Page             | `jira:adminPage`            | Page in Jira admin             |
+| Dashboard Gadget       | `jira:dashboardGadget`      | Dashboard widget               |
+| Custom Field           | `jira:customField`          | Custom issue fields            |
+| Workflow Condition     | `jira:workflowCondition`    | Workflow transition condition  |
+| Workflow Validator     | `jira:workflowValidator`    | Workflow transition validation |
+| Workflow Post Function | `jira:workflowPostFunction` | Post-transition action         |
 
 ## Your Developer Console
 
-You have access to the Atlassian Developer Console at https://developer.atlassian.com
+You have access to the Atlassian Developer Console at <https://developer.atlassian.com>
 with an existing Forge app ("Notion-AI-Connector"). You can create new Forge apps or
 OAuth 2.0 integrations.
 
@@ -143,6 +143,7 @@ Confluence and Jira Connect apps already on Marketplace.
 ## Why Forge Doesn't Apply to This Project
 
 This project targets Jira Data Center (self-hosted). Forge:
+
 - Requires Atlassian Cloud infrastructure
 - Cannot run on self-hosted instances
 - Uses JavaScript, not Java
@@ -152,6 +153,6 @@ The correct approach for Jira DC is the P2 plugin framework via the Atlassian SD
 
 ## References
 
-- Forge Documentation: https://developer.atlassian.com/platform/forge/
-- Forge CLI Reference: https://developer.atlassian.com/platform/forge/cli-reference/
-- Forge Getting Started: https://developer.atlassian.com/platform/forge/getting-started/
+- Forge Documentation: <https://developer.atlassian.com/platform/forge/>
+- Forge CLI Reference: <https://developer.atlassian.com/platform/forge/cli-reference/>
+- Forge Getting Started: <https://developer.atlassian.com/platform/forge/getting-started/>

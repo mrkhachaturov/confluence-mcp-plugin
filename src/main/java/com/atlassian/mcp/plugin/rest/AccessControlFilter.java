@@ -7,6 +7,7 @@ import com.atlassian.confluence.user.UserAccessor;
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.sal.api.UrlMode;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.servlet.Filter;
@@ -110,7 +111,7 @@ public class AccessControlFilter implements Filter {
     String override = config.getConfluenceBaseUrlOverride();
     if (override != null && !override.isEmpty()) return override;
     try {
-      return applicationProperties.getBaseUrl().toString();
+      return applicationProperties.getBaseUrl(UrlMode.CANONICAL).toString();
     } catch (Exception e) {
       return "";
     }

@@ -883,12 +883,12 @@ public class McpEndpointE2ETest {
     return McpClient.sync(transport)
         .requestTimeout(REQUEST_TIMEOUT)
         .initializationTimeout(REQUEST_TIMEOUT)
-        .clientInfo(new McpSchema.Implementation("confluence-mcp-e2e", "1.0"))
+        .clientInfo(McpSchema.Implementation.builder("confluence-mcp-e2e", "1.0").build())
         .build();
   }
 
   private static CallToolResult call(String name, Map<String, Object> args) {
-    return client.callTool(new CallToolRequest(name, args));
+    return client.callTool(CallToolRequest.builder(name).arguments(args).build());
   }
 
   private static void assertNotErrored(String toolName, CallToolResult result) {

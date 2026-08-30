@@ -85,7 +85,7 @@ public final class ResponseTrimmer {
       }
 
       // Recurse into remaining children
-      obj.fields().forEachRemaining(e -> trimNode(e.getValue(), false));
+      obj.properties().forEach(e -> trimNode(e.getValue(), false));
 
     } else if (node.isArray()) {
       ArrayNode arr = (ArrayNode) node;

@@ -3,6 +3,7 @@ package com.atlassian.mcp.plugin.rest;
 import com.atlassian.annotations.security.UnrestrictedAccess;
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
 import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.sal.api.UrlMode;
 import com.atlassian.sal.api.component.ComponentLocator;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -116,7 +117,7 @@ public class OAuthAnonymousFilter implements Filter {
     }
     try {
       ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
-      if (props != null) return props.getBaseUrl().toString();
+      if (props != null) return props.getBaseUrl(UrlMode.CANONICAL).toString();
     } catch (Exception e) {
       /* fall through */
     }

@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import com.atlassian.mcp.plugin.config.McpPluginConfig;
 import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.sal.api.UrlMode;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,7 +18,8 @@ public class ConfluenceRestClientTest {
   public void setUp() {
     applicationProperties = mock(ApplicationProperties.class);
     pluginConfig = mock(McpPluginConfig.class);
-    when(applicationProperties.getBaseUrl()).thenReturn("http://localhost:1990/confluence");
+    when(applicationProperties.getBaseUrl(UrlMode.CANONICAL))
+        .thenReturn("http://localhost:1990/confluence");
     when(pluginConfig.getConfluenceBaseUrlOverride()).thenReturn("");
   }
 

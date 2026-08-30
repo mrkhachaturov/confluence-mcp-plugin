@@ -22,7 +22,13 @@ public class UpdatePageTool extends TypedTool<UpdatePageTool.Args> {
 
   public record Args(
       @ToolArg(value = "The ID of the page to update", required = true) String pageId,
-      @ToolArg(value = "The new title of the page", required = true) String title,
+      @ToolArg(
+              value =
+                  "The new title of the page. To give the page an icon, begin the title with an"
+                      + " emoji — Confluence renders it in the page tree, the page header and"
+                      + " search results, e.g. '\uD83D\uDE80 Release 1.3'.",
+              required = true)
+          String title,
       @ToolArg(
               value =
                   "The new page content in Markdown. All rich features (panels, status badges,"

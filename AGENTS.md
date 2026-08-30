@@ -104,45 +104,93 @@ dispatch.
 | `users/`       | 1     | `confluence_users`       | Search users                                                                                        |
 | `analytics/`   | 1     | `confluence_analytics`   | Page view statistics (Cloud-only)                                                                   |
 
-### Tool Interface
+### Writing a tool
 
-Every tool implements `McpTool`:
+A tool extends `TypedTool<A>` and declares its parameters as a record whose
+components carry `@ToolArg`. The advertised JSON Schema is derived from that
+record and the bound record is what `run(A args, McpContext context)` receives,
+so the schema and the code that reads the arguments are one declaration.
+`inputSchema()` and every `execute` overload are final.
 
 ```java
-public interface McpTool {
-    String name();                          // snake_case
-    String description();
-    Map<String, Object> inputSchema();      // JSON Schema, written by hand
-    boolean isWriteTool();                  // true = hidden in read-only mode
-    default String requiredPluginKey() { return null; }
-    String execute(Map<String, Object> args, String authHeader) throws McpToolException;
+public class AddLabelTool extends TypedTool<AddLabelTool.Args> {
+
+  public record Args(
+      @ToolArg(value = "Content ID to label", required = true) String pageId,
+      @ToolArg(value = "Maximum number of results", defaultValue = "10") int limit,
+      @ToolArg(value = "Space type", allowed = {"global", "personal"}) String type,
+      @ToolArg("Space keys to filter by") List<String> spacesFilter) {}
+
+  public AddLabelTool(ConfluenceRestClient client) {
+    super(Args.class);
+    this.client = client;
+  }
+
+  @Override
+  protected String run(Args args, McpContext context) throws McpToolException {
+    return client.post(path, body, context.authHeader());
+  }
 }
 ```
 
+**Names.** A component's name becomes the wire name through Jackson's snake-case
+strategy: `pageId` is advertised as `page_id`. Never write the wire name as a
+string literal.
+
+**Types.** Declare the type the parameter actually is. A list of values is
+`List<String>`, not a string holding commas. A structured object is
+`Map<String, Object>`, not a string holding JSON. A repeated structured object is
+`List<SomeRecord>`. Keep `String` for text and for expressions Confluence parses,
+such as CQL and `expand`.
+
+**Required and defaults.** `required = true` for a parameter with no sensible
+default; `defaultValue` is written as it would arrive on the wire, so `"10"` is a
+valid default for an `int`. A primitive component must be one or the other, and a
+declaration that is neither fails when the tool is constructed. An optional
+number is `Integer`, which is null when the caller omits it.
+
+**Enums.** `allowed = {...}` advertises the values and rejects anything else
+before `run`. It applies to a `String` component only. Close an enum where
+Confluence defines a fixed set; leave it open where a deployment can register
+more.
+
+**Context.** Anything the caller did not declare comes from `McpContext`:
+`context.authHeader()` for the REST call, `context.reportProgress(...)` for
+progress. A tool never observes whether progress was asked for, so one `run` body
+serves both.
+
+**Before converting or adding a tool, ask what it is for**, not what parameters
+it happens to have. A parameter that is parsed and then dropped is a defect, not
+a parameter — the record makes that impossible to fake. A description that
+promises something the body does not do is the same defect written down.
+
 Each `McpTool` is adapted to the SDK's `SyncToolSpecification` via
-`McpToolAdapter`. `ToolRegistry.toSpecifications()` is the registration entry
-point that hands the filtered specs to the SDK server. Server capabilities are
-`tools(false).logging()` only — no resources or completions.
+`McpToolAdapter`. `ToolRegistry.toSpecifications()` hands the filtered specs to
+the SDK server. Server capabilities are `tools(false).logging()` only — no
+resources or completions.
 
-> **Known gap.** A tool declares its parameters twice: once in `inputSchema()`
-> and again in the `execute` body that reads them back out of a
-> `Map<String, Object>`, so the two can disagree and nothing catches it. The
-> sibling jira-mcp-plugin has retired this shape in favour of `TypedTool<A>` with
-> an argument record whose components carry `@ToolArg`, from which the schema is
-> derived. Porting that contract here is the next piece of work on this layer.
+### What a write tool sends
 
-### Writing execute() Bodies
+Tools call the Confluence REST API via `ConfluenceRestClient.get/post/put/delete()`,
+and Confluence expects nested structures:
 
-Tools call the Confluence REST API via `ConfluenceRestClient.get/post/put/delete()`:
-
-- **GET tools**: build the query string, return `client.get(path + query, authHeader)`
-- **POST/PUT tools**: build a `Map<String, Object>`, serialize with Jackson, send as body
 - **Create page**: `{"type": "page", "title": "...", "space": {"key": "..."}, "body": {"storage": {"value": "...", "representation": "storage"}}}`
 - **Add comment**: `{"type": "comment", "container": {"id": "...", "type": "page"}, "body": {"storage": {...}}}`
 - **Add label**: `[{"prefix": "global", "name": "..."}]`
 
-Confluence's REST API expects nested structures. Always verify a write tool's
-payload against the Confluence REST API docs rather than flattening it.
+`ConfluenceRequestBodyContractTest` drives every write tool with arguments
+derived from its own schema and validates what reaches the wire against
+Atlassian's published Data Center description, vendored at
+`src/test/resources/confluence-openapi.json`. That document is incomplete — it
+describes no `PUT` on content at all — so the test also asserts which tools it
+cannot judge, rather than reporting a pass it did not earn. Both lists are
+constants at the top of the test; shrinking the second one is the point of
+keeping it.
+
+**A page icon is the first character of its title.** Confluence Data Center has
+no title-emoji property — the Cloud `emoji-title-published` content property is
+stored but never read here, verified live. A title beginning with an emoji
+renders it in the page tree, the page header and search results.
 
 ### Content Conversion (bidirectional)
 

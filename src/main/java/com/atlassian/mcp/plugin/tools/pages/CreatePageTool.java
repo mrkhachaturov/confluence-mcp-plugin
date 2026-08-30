@@ -33,7 +33,11 @@ public class CreatePageTool extends TypedTool<CreatePageTool.Args> {
                       + " 'DEV', 'TEAM', or 'DOC')",
               required = true)
           String spaceKey,
-      @ToolArg(value = "The title of the page", required = true) String title,
+      @ToolArg(
+              value =
+                  "The title of the page. To give the page an icon, begin the title with an emoji — Confluence renders it in the page tree, the page header and search results, e.g. '\uD83D\uDE80 Release 1.3'.",
+              required = true)
+          String title,
       @ToolArg(
               value =
                   "Page content in Markdown. All features described in the tool description work in"

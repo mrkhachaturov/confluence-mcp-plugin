@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.3.0] - 2026-08-30
+
+### Changed
+
+- **Tools declare their parameters as a record and extend `TypedTool<A>`**; the advertised JSON Schema is derived from that record. Schemas carry `additionalProperties: false`, so an unknown parameter is refused rather than ignored. Auth and progress come from `McpContext` instead of the method signature. A parameter that is declared and never read no longer compiles.
+- **Lists are arrays instead of comma-separated strings**: `search.spaces_filter` and `upload_attachments.file_paths`. A caller passing one string is still accepted as a single element, but a comma inside it is now part of the value rather than a separator.
+- **Optional version checks are integers rather than sentinels**: `expected_version` on `update_page`, `append_to_page`, `prepend_to_page` and `replace_section`.
+- **Enums are closed where Confluence defines the set**: `list_spaces.type`, `content_format` on `create_page`, `update_page`, `append_to_page`, `prepend_to_page` and `convert_content`.
+- **`append_to_page` and `prepend_to_page` no longer accept `wiki`.** They merge into an existing storage body, where wiki markup was stored as if it were storage.
+- Platform: Confluence 10.2.15 with its platform BOM 8.3.25, MCP Java SDK 2.0.1 in place of 2.0.0-M3, AMPS 9.13.0. The compiler runs `-Xlint:all -Werror`.
+
+### Removed
+
+- **Six parameters that were declared and never read**: `search_user.group_name`, `create_page.emoji`, `update_page.emoji`, `get_page_children.expand`, `get_page_children.include_folders`, and `replace_section.content_format`. Each is now refused as an unknown parameter instead of being silently ignored. A page icon needs no parameter — Confluence Data Center renders an emoji that begins the page **title**, in the tree, the header and search results; the Cloud `emoji-title-published` property is accepted and stored by Data Center but never read, verified live.
+- **`move_page.target_space_key` and `move_page.position`.** Neither could work: see below.
+
+### Fixed
+
+- **`move_page` never moved a page.** It called `PUT /rest/api/content/{id}/move/{position}/{targetId}`, which answers **404** on Data Center — the endpoint belongs to Cloud — so every call failed, and `position` was reachable only through it. `target_space_key` was validated and then dropped, and cannot work regardless: Confluence answers *"Can't add a parent from another space"*. The tool now reparents through the `ancestors` of a content update, which is what Data Center supports, and states that a cross-space move belongs in the UI. Verified against a live 10.2.15 instance.
+- **`replace_section` could not find an `h1` or `h2` heading.** `StorageToMarkdown` wrote those two levels as setext — the title underlined with `===` or `---` rather than prefixed with `#` — and the tool matches ATX headings, so the two levels Confluence pages use most were invisible to it. Headings now convert as ATX at every level (`FlexmarkHtmlConverter.SETEXT_HEADINGS = false`), covered by a test over all six.
+- **`convert_content` did not convert wiki markup.** It returned the input untouched, labelled as storage format. It now converts through Confluence's own `POST /rest/api/contentbody/convert/storage`.
+- **`get_page.include_metadata` did nothing.** It is documented to control whether creation date, version and labels are returned, and now does.
+
+### Added
+
+- **`ConfluenceRequestBodyContractTest`** drives every write tool with arguments derived from its own schema and validates the JSON that reaches the wire against Atlassian's published Data Center OpenAPI description, vendored at `src/test/resources/confluence-openapi.json` (10.2.15). The document is incomplete — it describes no `PUT` on content — so the test also asserts which tools it cannot judge, rather than reporting a pass it did not earn.
+- **Lint and build toolchain**: mise tasks replace the justfile, `hk` owns the git hooks, and `flint` drives fifteen linters including Checkstyle and google-java-format. A Lint workflow runs them in CI; the build and release workflows pin their actions by digest.
+
 ## [1.2.5] - 2026-05-31
 
 ### Fixed

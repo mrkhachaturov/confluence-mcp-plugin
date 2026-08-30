@@ -108,6 +108,13 @@
     <!-- Admin web resources -->
     <web-resource key="mcp-admin-ui" name="MCP Admin Resources">
         <dependency>com.atlassian.auiplugin:ajs</dependency>
+        <!-- The page is built from AUI tabs, toggles and lozenges. Without these the
+             classes are inert: the tab strip renders as a bulleted list and every pane
+             shows at once, which is how this page behaved until now. -->
+        <dependency>com.atlassian.auiplugin:aui-tabs</dependency>
+        <dependency>com.atlassian.auiplugin:aui-toggle</dependency>
+        <dependency>com.atlassian.auiplugin:aui-lozenge</dependency>
+        <dependency>com.atlassian.auiplugin:aui-message</dependency>
         <resource type="download" name="admin.css" location="/css/admin.css"/>
         <resource type="download" name="admin.js" location="/js/admin.js"/>
     </web-resource>

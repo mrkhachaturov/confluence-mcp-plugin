@@ -35,8 +35,7 @@
 }
 
 /* Suggestion dropdown — shared */
-#mcp-user-suggestions,
-#mcp-group-suggestions {
+.mcp-suggestions {
   position: absolute;
   z-index: 100;
   background: var(--ds-surface-overlay, #ffffff);
@@ -64,6 +63,7 @@
   border-radius: 3px;
   max-height: 500px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .mcp-tool-row {
   padding: 8px 12px;
@@ -72,6 +72,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
+  flex-wrap: wrap;
   transition:
     background 0.1s,
     opacity 0.1s;
@@ -104,13 +105,12 @@
 .mcp-tool-desc {
   font-size: 12px;
   color: var(--ds-text-subtlest, #6b778c);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* A flex item's automatic minimum size is its content, so without this the
-       description never shrinks: the ellipsis never appears and a long one widens
-       the whole page instead. */
+  /* A description is the only thing in the row worth reading, so it wraps onto as
+     many lines as it needs. Truncating it instead left a row that could not shrink,
+     which widened the page and put a horizontal scrollbar across the whole screen. */
+  flex: 1 1 240px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Read-only value blocks */
@@ -128,4 +128,15 @@
   width: 400px;
   max-width: 100%;
   margin-bottom: 8px;
+}
+
+/* Spacing the template used to set inline. */
+.mcp-intro {
+  margin-bottom: 16px;
+}
+.mcp-tags {
+  margin-bottom: 4px;
+}
+.mcp-actions {
+  margin-top: 20px;
 }

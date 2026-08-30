@@ -1,11 +1,12 @@
 # Changelog
 
-## [1.3.2] - 2026-08-30
+## [1.3.3] - 2026-08-30
 
 ### Fixed
 
-- Admin page: the **Callback URL** and **MCP Config for Users** blocks were dark text on a dark background and unreadable in the light theme. They now follow the active Confluence theme.
-- Admin page: a long tool description stretched the page sideways, leaving a horizontal scrollbar and empty space to the right. The page now fits its container at any width.
+- **The admin page's tabs never worked.** The markup asked for AUI tabs but the plugin declared none of the AUI components it uses, so the classes were inert: the tab strip rendered as a bulleted list and all four panes — General, Access Control, Tools, OAuth — were shown stacked on one endless page. They are now real tabs.
+- **The page scrolled sideways, with empty space beside it.** A tool's description was set to truncate on one line, which left rows that could not shrink and pushed the whole admin screen wider than the window. Descriptions now wrap onto as many lines as they need and are readable in full.
+- **The Callback URL and MCP Config blocks were unreadable** — dark text on a dark background in the light theme, with long values running off the edge. They follow the active Confluence theme and wrap.
 
 ## [1.3.0] - 2026-08-30
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.3.3] - 2026-08-30
+
+Requires Confluence Data Center 10.2.15.
+
+### Changed
+
+Every tool now **refuses an unknown parameter** instead of ignoring it, so a call that used to be accepted and quietly misread is now reported. The parameters below changed shape:
+
+- `search.spaces_filter` and `upload_attachments.file_paths` take an array of values instead of one string of them separated by commas. A single string is still accepted as one value — but a comma inside it is now part of that value, not a separator.
+- `list_spaces.type`, and `content_format` on `create_page`, `update_page`, `append_to_page`, `prepend_to_page` and `convert_content`, accept only their documented values.
+- `append_to_page` and `prepend_to_page` no longer accept `content_format: wiki`. They merge into the page's existing storage format, where wiki markup was stored as if it were storage.
+
+### Removed
+
+Eight parameters that were accepted and then ignored. Each is now refused, so a call that relied on one fails visibly instead of silently doing something else:
+
+- `search_user.group_name`, `get_page_children.expand`, `get_page_children.include_folders`, `replace_section.content_format`
+- `create_page.emoji` and `update_page.emoji` — to give a page an icon, begin its **title** with an emoji; Confluence shows it in the page tree, the page header and search results.
+- `move_page.target_space_key` and `move_page.position` — neither could ever work, see below.
+
+### Fixed
+
+- **The admin page's tabs never worked.** The markup asked for AUI tabs but the plugin declared none of the AUI components it uses, so the classes were inert: the tab strip rendered as a bulleted list and all four panes — General, Access Control, Tools, OAuth — were shown stacked on one endless page. They are now real tabs.
+- **The page scrolled sideways, with empty space beside it.** A tool's description was set to truncate on one line, which left rows that could not shrink and pushed the whole admin screen wider than the window. Descriptions now wrap onto as many lines as they need and are readable in full.
+- **The Callback URL and MCP Config blocks were unreadable** — dark text on a dark background in the light theme, with long values running off the edge. They follow the active Confluence theme and wrap.
+- **`move_page` never moved a page.** It called an endpoint that exists only on Confluence Cloud, so every call failed. It now moves a page under a different parent in the same space. Data Center cannot move a page between spaces over its REST API — do that in the Confluence UI.
+- **`replace_section` could not find an `h1` or `h2` heading**, which are the levels Confluence pages use most, and reported the section as missing.
+- **`convert_content` did not convert wiki markup.** It returned the input unchanged while labelling it storage format. It now converts it through Confluence.
+- **`get_page.include_metadata` had no effect.** It now controls whether creation date, version and labels are returned, as documented.
+
 ## [1.2.5] - 2026-05-31
 
 ### Fixed

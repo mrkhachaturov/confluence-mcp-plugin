@@ -2,17 +2,46 @@ package com.atlassian.mcp.plugin.tools.attachments;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
+import com.atlassian.mcp.plugin.tools.McpContext;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
-public class UploadAttachmentsTool implements McpTool {
+public class UploadAttachmentsTool extends TypedTool<UploadAttachmentsTool.Args> {
+
+  public record Args(
+      @ToolArg(
+              value =
+                  "The ID of the Confluence content (page or blog post) to attach files to."
+                      + " Example: '123456789'. If uploading multiple files with the same names,"
+                      + " new versions will be created automatically.",
+              required = true)
+          String contentId,
+      @ToolArg(
+              value =
+                  "File paths to upload. Each may be absolute or relative to the current working"
+                      + " directory. All files are uploaded with the same comment and minor_edit"
+                      + " settings.",
+              required = true)
+          List<String> filePaths,
+      @ToolArg(
+              "(Optional) Comment for all uploaded attachments. Visible in version history."
+                  + " Example: 'Q4 2024 batch upload'")
+          String comment,
+      @ToolArg(
+              value =
+                  "(Optional) Whether this is a minor edit. If true, watchers are not notified.",
+              defaultValue = "false")
+          boolean minorEdit) {}
+
   private final ConfluenceRestClient client;
 
   public UploadAttachmentsTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -27,82 +56,32 @@ public class UploadAttachmentsTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.of(
-                "content_id",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "The ID of the Confluence content (page or blog post) to attach files to. Example: '123456789'. If uploading multiple files with the same names, new versions will be created automatically."),
-                "file_paths",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "Comma-separated list of file paths to upload. Can be absolute or relative paths. Examples: './file1.pdf,./file2.png' or 'C:\\docs\\report.docx,D:\\image.jpg'. All files uploaded with same comment/minor_edit settings."),
-                "comment",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) Comment for all uploaded attachments. Visible in version history. Example: 'Q4 2024 batch upload'"),
-                "minor_edit",
-                    Map.of(
-                        "type",
-                        "boolean",
-                        "description",
-                        "(Optional) Whether this is a minor edit. If true, watchers are not notified. Default is false.",
-                        "default",
-                        false)),
-        "required", List.of("content_id", "file_paths"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return true;
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String contentId = (String) args.get("content_id");
-    if (contentId == null || contentId.isBlank()) {
-      throw new McpToolException("'content_id' parameter is required");
+  protected String run(Args args, McpContext context) throws McpToolException {
+    if (args.filePaths().isEmpty()) {
+      throw new McpToolException("'file_paths' must name at least one file");
     }
-    contentId = McpTool.resolvePageId(contentId);
-    String filePaths = (String) args.get("file_paths");
-    if (filePaths == null || filePaths.isBlank()) {
-      throw new McpToolException("'file_paths' parameter is required");
-    }
-    String comment = (String) args.get("comment");
-    boolean minorEdit = getBoolean(args, "minor_edit", false);
-
-    String[] paths = filePaths.split(",");
-    List<String> results = new ArrayList<>();
+    String contentId = McpTool.resolvePageId(args.contentId());
     String endpoint = "/rest/api/content/" + contentId + "/child/attachment";
 
-    for (String p : paths) {
-      String trimmed = p.trim();
-      if (trimmed.isEmpty()) continue;
-      Path file = Paths.get(trimmed);
+    List<String> results = new ArrayList<>();
+    int done = 0;
+    for (String filePath : args.filePaths()) {
+      Path file = Paths.get(filePath);
       try {
-        client.postMultipart(endpoint, file, comment, minorEdit, authHeader);
-        results.add(trimmed + ": OK");
+        client.postMultipart(
+            endpoint, file, args.comment(), args.minorEdit(), context.authHeader());
+        results.add(filePath + ": OK");
       } catch (McpToolException e) {
-        results.add(trimmed + ": ERROR - " + e.getMessage());
+        results.add(filePath + ": ERROR - " + e.getMessage());
       }
+      context.reportProgress(++done, args.filePaths().size(), "uploaded " + filePath);
     }
 
     return String.join("\n", results);
-  }
-
-  private static boolean getBoolean(Map<String, Object> args, String key, boolean defaultVal) {
-    Object val = args.get(key);
-    if (val instanceof Boolean b) return b;
-    if (val instanceof String s) return "true".equalsIgnoreCase(s);
-    return defaultVal;
   }
 }

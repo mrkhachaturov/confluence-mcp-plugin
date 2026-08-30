@@ -50,11 +50,9 @@ public final class McpToolAdapter {
             .build();
 
     McpSchema.Tool schemaTool =
-        McpSchema.Tool.builder()
-            .name(tool.name())
+        McpSchema.Tool.builder(tool.name(), withSchemaDialect(tool.inputSchema()))
             .title(tool.title())
             .description(tool.description())
-            .inputSchema(withSchemaDialect(tool.inputSchema()))
             .annotations(annotations)
             .build();
 

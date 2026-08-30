@@ -40,8 +40,10 @@ strip_components = 1
 
 [tasks.lint]
 description = "Run all lints"
-run = "flint run"
+# flint routes no stylesheet to any linter — its Biome check is fixed to JS/TS/JSON —
+# so Biome is called on the CSS directly, or admin.css goes unchecked entirely.
+run = ["flint run", "biome check src/main/resources/css"]
 
 [tasks."lint:fix"]
 description = "Auto-fix lint issues"
-run = "flint run --fix"
+run = ["flint run --fix", "biome check --write src/main/resources/css"]

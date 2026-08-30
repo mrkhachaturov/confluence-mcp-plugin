@@ -3,22 +3,36 @@ package com.atlassian.mcp.plugin.tools.pages;
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.StorageToMarkdown;
+import com.atlassian.mcp.plugin.tools.McpContext;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Mirrors upstream: confluence_mcp.get_page_diff() Returns: {page_id, from_version, to_version,
  * diff}
  */
-public class GetPageDiffTool implements McpTool {
+public class GetPageDiffTool extends TypedTool<GetPageDiffTool.Args> {
+
+  public record Args(
+      @ToolArg(
+              value =
+                  "Confluence page ID (numeric ID, can be found in the page URL). For example, in"
+                      + " 'https://example.atlassian.net/wiki/spaces/TEAM/pages/123456789/Page+Title',"
+                      + " the page ID is '123456789'.",
+              required = true)
+          String pageId,
+      @ToolArg(value = "Source version number", required = true) int fromVersion,
+      @ToolArg(value = "Target version number", required = true) int toVersion) {}
+
   private final ConfluenceRestClient client;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public GetPageDiffTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -33,92 +47,41 @@ public class GetPageDiffTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.of(
-                "page_id",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "Confluence page ID (numeric ID, can be found in the page URL). For example, in 'https://example.atlassian.net/wiki/spaces/TEAM/pages/123456789/Page+Title', the page ID is '123456789'."),
-                "from_version", Map.of("type", "integer", "description", "Source version number"),
-                "to_version", Map.of("type", "integer", "description", "Target version number")),
-        "required", List.of("page_id", "from_version", "to_version"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return false;
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String pageId = (String) args.get("page_id");
-    if (pageId == null || pageId.isBlank()) {
-      throw new McpToolException("'page_id' parameter is required");
-    }
-    pageId = McpTool.resolvePageId(pageId);
-    int fromVersion = getInt(args, "from_version", 0);
-    int toVersion = getInt(args, "to_version", 0);
-    if (fromVersion < 1 || toVersion < 1) {
+  protected String run(Args args, McpContext context) throws McpToolException {
+    if (args.fromVersion() < 1 || args.toVersion() < 1) {
       throw new McpToolException("'from_version' and 'to_version' must be >= 1");
     }
+    String pageId = McpTool.resolvePageId(args.pageId());
 
     try {
-      // Fetch both versions (raw — we need body.storage.value)
-      String fromJson =
-          client.getRaw(
-              "/rest/api/content/"
-                  + pageId
-                  + "?status=historical&version="
-                  + fromVersion
-                  + "&expand=body.storage,version",
-              authHeader);
-      String toJson =
-          client.getRaw(
-              "/rest/api/content/"
-                  + pageId
-                  + "?status=historical&version="
-                  + toVersion
-                  + "&expand=body.storage,version",
-              authHeader);
-
-      JsonNode fromNode = mapper.readTree(fromJson);
-      JsonNode toNode = mapper.readTree(toJson);
-
-      String fromStorage = fromNode.path("body").path("storage").path("value").asText("");
-      String toStorage = toNode.path("body").path("storage").path("value").asText("");
-      String fromContent = StorageToMarkdown.convert(fromStorage);
-      String toContent = StorageToMarkdown.convert(toStorage);
-
-      // Simple line-based diff
-      String[] fromLines = fromContent.split("\n");
-      String[] toLines = toContent.split("\n");
+      String[] fromLines = markdownAt(pageId, args.fromVersion(), context).split("\n");
+      String[] toLines = markdownAt(pageId, args.toVersion(), context).split("\n");
 
       StringBuilder diff = new StringBuilder();
-      diff.append("--- version ").append(fromVersion).append("\n");
-      diff.append("+++ version ").append(toVersion).append("\n");
+      diff.append("--- version ").append(args.fromVersion()).append("\n");
+      diff.append("+++ version ").append(args.toVersion()).append("\n");
 
       int maxLines = Math.max(fromLines.length, toLines.length);
       for (int i = 0; i < maxLines; i++) {
         String fl = i < fromLines.length ? fromLines[i] : "";
         String tl = i < toLines.length ? toLines[i] : "";
-        if (!fl.equals(tl)) {
-          if (i < fromLines.length) diff.append("- ").append(fl).append("\n");
-          if (i < toLines.length) diff.append("+ ").append(tl).append("\n");
-        } else {
+        if (fl.equals(tl)) {
           diff.append("  ").append(fl).append("\n");
+          continue;
         }
+        if (i < fromLines.length) diff.append("- ").append(fl).append("\n");
+        if (i < toLines.length) diff.append("+ ").append(tl).append("\n");
       }
 
-      // Return as JSON object matching upstream format
       ObjectNode result = mapper.createObjectNode();
       result.put("page_id", pageId);
-      result.put("from_version", fromVersion);
-      result.put("to_version", toVersion);
+      result.put("from_version", args.fromVersion());
+      result.put("to_version", args.toVersion());
       result.put("diff", diff.toString());
       return mapper.writeValueAsString(result);
     } catch (McpToolException e) {
@@ -128,16 +91,16 @@ public class GetPageDiffTool implements McpTool {
     }
   }
 
-  private static int getInt(Map<String, Object> args, String key, int defaultVal) {
-    Object val = args.get(key);
-    if (val instanceof Number n) return n.intValue();
-    if (val instanceof String s) {
-      try {
-        return Integer.parseInt(s);
-      } catch (NumberFormatException e) {
-        return defaultVal;
-      }
-    }
-    return defaultVal;
+  private String markdownAt(String pageId, int version, McpContext context) throws Exception {
+    String json =
+        client.getRaw(
+            "/rest/api/content/"
+                + pageId
+                + "?status=historical&version="
+                + version
+                + "&expand=body.storage,version",
+            context.authHeader());
+    JsonNode node = mapper.readTree(json);
+    return StorageToMarkdown.convert(node.path("body").path("storage").path("value").asText(""));
   }
 }

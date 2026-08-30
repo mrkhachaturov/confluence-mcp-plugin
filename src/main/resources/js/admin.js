@@ -14,7 +14,7 @@
 
     if (allToolsMeta.length === 0) {
       $list.append(
-        '<div style="padding:12px; color:#6b778c;">No tools registered.</div>',
+        '<div style="padding:12px; color:var(--ds-text-subtlest, #6b778c);">No tools registered.</div>',
       );
       return;
     }
@@ -72,7 +72,7 @@
       var q = $(this).val().trim();
       timer = setTimeout(() => {
         if (!q || q.length < 2) {
-          $(`#${cfg.sugId}`).hide().empty();
+          $(`#${cfg.sugId}`).prop("hidden", true).empty();
           return;
         }
         $.ajax({
@@ -103,7 +103,7 @@
                 "</div>",
             );
           });
-          $sug.toggle($sug.children().length > 0);
+          $sug.prop("hidden", $sug.children().length === 0);
         });
       }, 300);
     });
@@ -114,7 +114,7 @@
         .push({ value: $(this).data("value"), label: $(this).data("label") });
       renderTags(cfg.items(), cfg.tagsId, cfg.removeClass);
       $(`#${cfg.inputId}`).val("");
-      $(`#${cfg.sugId}`).hide().empty();
+      $(`#${cfg.sugId}`).prop("hidden", true).empty();
     });
 
     $(document).on("click", `.${cfg.removeClass}`, function (e) {
@@ -125,7 +125,7 @@
 
     $(`#${cfg.inputId}`).on("blur", () => {
       setTimeout(() => {
-        $(`#${cfg.sugId}`).hide();
+        $(`#${cfg.sugId}`).prop("hidden", true);
       }, 200);
     });
   }
@@ -141,14 +141,14 @@
     if (allowAll?.checked) {
       $w.html(
         "⚠ Open access: ALL authenticated Confluence users can use the MCP server.",
-      ).show();
+      ).prop("hidden", false);
     } else if (allowedUsers.length === 0 && allowedGroups.length === 0) {
       $w.html(
         "No users or groups are allowed yet — the MCP server will deny everyone. " +
           "Add a user/group above, or enable “allow all authenticated users”.",
-      ).show();
+      ).prop("hidden", false);
     } else {
-      $w.hide();
+      $w.prop("hidden", true);
     }
   }
 
@@ -250,7 +250,7 @@
           $("#oauth-secret-status").text("No secret configured yet.");
         }
         if (config.oauthEnabled) {
-          $("#oauth-status-group").show();
+          $("#oauth-status-group").prop("hidden", false);
           $("#oauth-status").html(
             '<span class="aui-lozenge aui-lozenge-success">Active</span>',
           );
@@ -274,7 +274,7 @@
       })
       .fail((xhr) => {
         $("#mcp-tools-list").html(
-          '<div style="padding:12px; color:#de350b;">Failed to load config (HTTP ' +
+          '<div style="padding:12px; color:var(--ds-text-danger, #de350b);">Failed to load config (HTTP ' +
             xhr.status +
             ").</div>",
         );

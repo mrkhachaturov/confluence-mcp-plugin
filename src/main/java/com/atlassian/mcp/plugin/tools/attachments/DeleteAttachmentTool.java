@@ -2,14 +2,25 @@ package com.atlassian.mcp.plugin.tools.attachments;
 
 import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.McpToolException;
-import com.atlassian.mcp.plugin.tools.McpTool;
-import java.util.List;
-import java.util.Map;
+import com.atlassian.mcp.plugin.tools.McpContext;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 
-public class DeleteAttachmentTool implements McpTool {
+public class DeleteAttachmentTool extends TypedTool<DeleteAttachmentTool.Args> {
+
+  public record Args(
+      @ToolArg(
+              value =
+                  "The ID of the attachment to delete. Attachment IDs can be found using the"
+                      + " get_attachments tool. Example: 'att123456789'. **Warning**: This"
+                      + " permanently deletes the attachment and all its versions.",
+              required = true)
+          String attachmentId) {}
+
   private final ConfluenceRestClient client;
 
   public DeleteAttachmentTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -24,21 +35,6 @@ public class DeleteAttachmentTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.of(
-                "attachment_id",
-                Map.of(
-                    "type",
-                    "string",
-                    "description",
-                    "The ID of the attachment to delete. Attachment IDs can be found using the get_attachments tool. Example: 'att123456789'. **Warning**: This permanently deletes the attachment and all its versions.")),
-        "required", List.of("attachment_id"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return true;
   }
@@ -49,12 +45,7 @@ public class DeleteAttachmentTool implements McpTool {
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String attachmentId = (String) args.get("attachment_id");
-    if (attachmentId == null || attachmentId.isBlank()) {
-      throw new McpToolException("'attachment_id' parameter is required");
-    }
-
-    return client.delete("/rest/api/content/" + attachmentId, authHeader);
+  protected String run(Args args, McpContext context) throws McpToolException {
+    return client.delete("/rest/api/content/" + args.attachmentId(), context.authHeader());
   }
 }

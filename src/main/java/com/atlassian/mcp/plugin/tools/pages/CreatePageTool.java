@@ -4,24 +4,73 @@ import com.atlassian.mcp.plugin.ConfluenceRestClient;
 import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.ResponseTransformer;
-import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.McpContext;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Mirrors upstream: confluence_mcp.create_page() Returns: {message, page: {simplified page dict}}
  */
-public class CreatePageTool implements McpTool {
+public class CreatePageTool extends TypedTool<CreatePageTool.Args> {
+
+  static final String CONTENT_FORMAT_DESCRIPTION =
+      "Content format. 'markdown' (default) is converted to Confluence storage format; 'storage'"
+          + " and 'wiki' are sent through untouched. Use 'storage' only for macros Markdown cannot"
+          + " express.";
+
+  public record Args(
+      @ToolArg(
+              value =
+                  "The key of the space to create the page in (usually a short uppercase code like"
+                      + " 'DEV', 'TEAM', or 'DOC')",
+              required = true)
+          String spaceKey,
+      @ToolArg(
+              value =
+                  "The title of the page. To give the page an icon, begin the title with an emoji — Confluence renders it in the page tree, the page header and search results, e.g. '\uD83D\uDE80 Release 1.3'.",
+              required = true)
+          String title,
+      @ToolArg(
+              value =
+                  "Page content in Markdown. All features described in the tool description work in"
+                      + " Markdown — panels, status badges, task lists, expandable sections are all"
+                      + " auto-converted to native Confluence elements. Do NOT start with '# Title'"
+                      + " — Confluence displays the title separately.",
+              required = true)
+          String content,
+      @ToolArg(
+              "(Optional) parent page ID. If provided, this page will be created as a child of the"
+                  + " specified page")
+          String parentId,
+      @ToolArg(
+              value = CONTENT_FORMAT_DESCRIPTION,
+              defaultValue = "markdown",
+              allowed = {"markdown", "wiki", "storage"})
+          String contentFormat,
+      @ToolArg(
+              value =
+                  "If true, return the page content converted to Markdown instead of storage"
+                      + " format.",
+              defaultValue = "false")
+          boolean returnMarkdown,
+      @ToolArg("Labels to apply to the page after creation. Example: ['policy', 'hr', 'q3-2026']")
+          List<String> labels,
+      @ToolArg("(Optional) A comment to add to the page after creation, in Markdown format.")
+          String initialComment) {}
+
   private final ConfluenceRestClient client;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public CreatePageTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -62,186 +111,42 @@ public class CreatePageTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.ofEntries(
-                Map.entry(
-                    "space_key",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "The key of the space to create the page in (usually a short uppercase code like 'DEV', 'TEAM', or 'DOC')")),
-                Map.entry(
-                    "title", Map.of("type", "string", "description", "The title of the page")),
-                Map.entry(
-                    "content",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "Page content in Markdown. All features described in the tool description work in Markdown — panels, status badges, task lists, expandable sections are all auto-converted to native Confluence elements. Do NOT start with '# Title' — Confluence displays the title separately.")),
-                Map.entry(
-                    "parent_id",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) parent page ID. If provided, this page will be created as a child of the specified page")),
-                Map.entry(
-                    "content_format",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) Content format. Use 'markdown' (default). Only use 'storage' if you need advanced Confluence macros not covered by Markdown.",
-                        "default",
-                        "markdown")),
-                Map.entry(
-                    "emoji",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) Page title emoji (icon shown in navigation). Can be any emoji character.")),
-                Map.entry(
-                    "return_markdown",
-                    Map.of(
-                        "type",
-                        "boolean",
-                        "description",
-                        "If true, return the page content converted to Markdown instead of storage format.",
-                        "default",
-                        false)),
-                Map.entry(
-                    "labels",
-                    Map.of(
-                        "type",
-                        "array",
-                        "description",
-                        "List of labels to apply to the page after creation. Example: ['policy', 'hr', 'q3-2026']",
-                        "items",
-                        Map.of("type", "string"))),
-                Map.entry(
-                    "initial_comment",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) A comment to add to the page after creation, in Markdown format."))),
-        "required", List.of("space_key", "title", "content"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return true;
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String spaceKey = (String) args.get("space_key");
-    if (spaceKey == null || spaceKey.isBlank()) {
-      throw new McpToolException("'space_key' parameter is required");
-    }
-    String title = (String) args.get("title");
-    if (title == null || title.isBlank()) {
-      throw new McpToolException("'title' parameter is required");
-    }
-    String content = (String) args.get("content");
-    if (content == null || content.isBlank()) {
-      throw new McpToolException("'content' parameter is required");
-    }
-    String parentId = (String) args.get("parent_id");
-    String contentFormat = (String) args.getOrDefault("content_format", "markdown");
-    boolean returnMarkdown = getBoolean(args, "return_markdown", false);
+  protected String run(Args args, McpContext context) throws McpToolException {
+    String representation = "wiki".equals(args.contentFormat()) ? "wiki" : "storage";
+    String body =
+        "markdown".equals(args.contentFormat())
+            ? MarkdownToStorage.convert(args.content())
+            : args.content();
 
-    // Convert content to storage format (mirrors upstream's markdown_to_confluence_storage)
-    String finalBody;
-    String representation;
-    if ("markdown".equals(contentFormat)) {
-      finalBody = MarkdownToStorage.convert(content);
-      representation = "storage";
-    } else if ("wiki".equals(contentFormat)) {
-      finalBody = content;
-      representation = "wiki";
-    } else {
-      finalBody = content;
-      representation = "storage";
-    }
-
-    Map<String, Object> requestBody = new HashMap<>();
+    Map<String, Object> requestBody = new LinkedHashMap<>();
     requestBody.put("type", "page");
-    requestBody.put("title", title);
-    requestBody.put("space", Map.of("key", spaceKey));
+    requestBody.put("title", args.title());
+    requestBody.put("space", Map.of("key", args.spaceKey()));
     requestBody.put(
-        "body",
-        Map.of(
-            representation,
-            Map.of(
-                "value", finalBody,
-                "representation", representation)));
-    if (parentId != null && !parentId.isBlank()) {
-      requestBody.put("ancestors", List.of(Map.of("id", parentId)));
+        "body", Map.of(representation, Map.of("value", body, "representation", representation)));
+    if (args.parentId() != null) {
+      requestBody.put("ancestors", List.of(Map.of("id", args.parentId())));
     }
+
     try {
       String jsonBody = mapper.writeValueAsString(requestBody);
-      String rawJson = client.postRaw("/rest/api/content", jsonBody, authHeader);
+      String rawJson = client.postRaw("/rest/api/content", jsonBody, context.authHeader());
 
-      // Transform to upstream format: {message, page}
-      String baseUrl = client.getBaseUrl();
       JsonNode raw = mapper.readTree(rawJson);
       ObjectNode result = mapper.createObjectNode();
       result.put("message", "Page created successfully");
-      result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, returnMarkdown));
+      result.set(
+          "page",
+          ResponseTransformer.simplifyPageNode(raw, client.getBaseUrl(), args.returnMarkdown()));
 
       String createdPageId = raw.path("id").asText();
-
-      // Best-effort: add labels if provided
-      Object labelsObj = args.get("labels");
-      if (labelsObj instanceof List<?> labelsList && !labelsList.isEmpty()) {
-        try {
-          List<Map<String, String>> labelPayload = new ArrayList<>();
-          for (Object l : labelsList) {
-            labelPayload.add(Map.of("prefix", "global", "name", l.toString()));
-          }
-          String labelJson = mapper.writeValueAsString(labelPayload);
-          client.postRaw("/rest/api/content/" + createdPageId + "/label", labelJson, authHeader);
-
-          ArrayNode labelsAdded = mapper.createArrayNode();
-          for (Object l : labelsList) {
-            labelsAdded.add(l.toString());
-          }
-          result.set("labels_added", labelsAdded);
-        } catch (Exception labelErr) {
-          result.put("labels_error", "Failed to add labels: " + labelErr.getMessage());
-        }
-      }
-
-      // Best-effort: add initial comment if provided
-      String initialComment = (String) args.get("initial_comment");
-      if (initialComment != null && !initialComment.isBlank()) {
-        try {
-          Map<String, Object> commentBody = new HashMap<>();
-          commentBody.put("type", "comment");
-          commentBody.put("container", Map.of("id", createdPageId, "type", "page"));
-          commentBody.put(
-              "body",
-              Map.of(
-                  "storage",
-                  Map.of(
-                      "value",
-                      MarkdownToStorage.convert(initialComment),
-                      "representation",
-                      "storage")));
-          String commentJson = mapper.writeValueAsString(commentBody);
-          client.postRaw("/rest/api/content", commentJson, authHeader);
-          result.put("comment_added", true);
-        } catch (Exception commentErr) {
-          result.put("comment_error", "Failed to add comment: " + commentErr.getMessage());
-        }
-      }
+      addLabels(createdPageId, args.labels(), result, context);
+      addInitialComment(createdPageId, args.initialComment(), result, context);
 
       return mapper.writeValueAsString(result);
     } catch (McpToolException e) {
@@ -251,10 +156,46 @@ public class CreatePageTool implements McpTool {
     }
   }
 
-  private static boolean getBoolean(Map<String, Object> args, String key, boolean defaultVal) {
-    Object val = args.get(key);
-    if (val instanceof Boolean b) return b;
-    if (val instanceof String s) return "true".equalsIgnoreCase(s);
-    return defaultVal;
+  /**
+   * The page exists by now, so a labelling failure is reported beside it rather than replacing it.
+   */
+  private void addLabels(
+      String pageId, List<String> labels, ObjectNode result, McpContext context) {
+    if (labels == null || labels.isEmpty()) return;
+    try {
+      List<Map<String, String>> payload = new ArrayList<>();
+      ArrayNode added = mapper.createArrayNode();
+      for (String label : labels) {
+        payload.add(Map.of("prefix", "global", "name", label));
+        added.add(label);
+      }
+      client.postRaw(
+          "/rest/api/content/" + pageId + "/label",
+          mapper.writeValueAsString(payload),
+          context.authHeader());
+      result.set("labels_added", added);
+    } catch (Exception e) {
+      result.put("labels_error", "Failed to add labels: " + e.getMessage());
+    }
+  }
+
+  private void addInitialComment(
+      String pageId, String comment, ObjectNode result, McpContext context) {
+    if (comment == null) return;
+    try {
+      Map<String, Object> commentBody = new LinkedHashMap<>();
+      commentBody.put("type", "comment");
+      commentBody.put("container", Map.of("id", pageId, "type", "page"));
+      commentBody.put(
+          "body",
+          Map.of(
+              "storage",
+              Map.of("value", MarkdownToStorage.convert(comment), "representation", "storage")));
+      client.postRaw(
+          "/rest/api/content", mapper.writeValueAsString(commentBody), context.authHeader());
+      result.put("comment_added", true);
+    } catch (Exception e) {
+      result.put("comment_error", "Failed to add comment: " + e.getMessage());
+    }
   }
 }

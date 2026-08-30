@@ -5,12 +5,15 @@ import com.atlassian.mcp.plugin.MarkdownToStorage;
 import com.atlassian.mcp.plugin.McpToolException;
 import com.atlassian.mcp.plugin.ResponseTransformer;
 import com.atlassian.mcp.plugin.StorageToMarkdown;
+import com.atlassian.mcp.plugin.tools.McpContext;
 import com.atlassian.mcp.plugin.tools.McpTool;
+import com.atlassian.mcp.plugin.tools.ToolArg;
+import com.atlassian.mcp.plugin.tools.TypedTool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -20,15 +23,35 @@ import java.util.regex.Pattern;
  * Replace a section of a Confluence page identified by its heading. Returns: {message, page:
  * {simplified page dict}}
  */
-public class ReplaceSectionTool implements McpTool {
-  private final ConfluenceRestClient client;
-  private final ObjectMapper mapper = new ObjectMapper();
+public class ReplaceSectionTool extends TypedTool<ReplaceSectionTool.Args> {
 
   /** Matches markdown headings: # H1, ## H2, ### H3, etc. */
   private static final Pattern HEADING_PATTERN =
       Pattern.compile("^(#{1,6})\\s+(.+)$", Pattern.MULTILINE);
 
+  public record Args(
+      @ToolArg(value = "The ID of the page to edit", required = true) String pageId,
+      @ToolArg(
+              value = "The exact heading text to find (without the # prefix). Case-sensitive.",
+              required = true)
+          String heading,
+      @ToolArg(
+              value =
+                  "New content for the section, in Markdown. This replaces everything under the"
+                      + " heading until the next heading of equal or higher level.",
+              required = true)
+          String content,
+      @ToolArg(
+              "(Optional) Heading level to match (1-6). Use to disambiguate when the same text"
+                  + " appears at different heading levels.")
+          Integer headingLevel,
+      @ToolArg(AppendToPageTool.EXPECTED_VERSION_DESCRIPTION) Integer expectedVersion) {}
+
+  private final ConfluenceRestClient client;
+  private final ObjectMapper mapper = new ObjectMapper();
+
   public ReplaceSectionTool(ConfluenceRestClient client) {
+    super(Args.class);
     this.client = client;
   }
 
@@ -49,55 +72,6 @@ public class ReplaceSectionTool implements McpTool {
   }
 
   @Override
-  public Map<String, Object> inputSchema() {
-    return Map.of(
-        "type", "object",
-        "properties",
-            Map.ofEntries(
-                Map.entry(
-                    "page_id",
-                    Map.of("type", "string", "description", "The ID of the page to edit")),
-                Map.entry(
-                    "heading",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "The exact heading text to find (without the # prefix). Case-sensitive.")),
-                Map.entry(
-                    "content",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "New content for the section (in Markdown by default). This replaces everything under the heading until the next heading of equal or higher level.")),
-                Map.entry(
-                    "content_format",
-                    Map.of(
-                        "type",
-                        "string",
-                        "description",
-                        "(Optional) Format of the new content: 'markdown' (default) or 'storage'.",
-                        "default",
-                        "markdown")),
-                Map.entry(
-                    "heading_level",
-                    Map.of(
-                        "type",
-                        "integer",
-                        "description",
-                        "(Optional) Heading level to match (1-6). Use to disambiguate when the same text appears at different heading levels.")),
-                Map.entry(
-                    "expected_version",
-                    Map.of(
-                        "type",
-                        "integer",
-                        "description",
-                        "If provided, the update will fail if the page's current version doesn't match."))),
-        "required", List.of("page_id", "heading", "content"));
-  }
-
-  @Override
   public boolean isWriteTool() {
     return true;
   }
@@ -108,80 +82,41 @@ public class ReplaceSectionTool implements McpTool {
   }
 
   @Override
-  public String execute(Map<String, Object> args, String authHeader) throws McpToolException {
-    String pageId = (String) args.get("page_id");
-    if (pageId == null || pageId.isBlank()) {
-      throw new McpToolException("'page_id' parameter is required");
-    }
-    pageId = McpTool.resolvePageId(pageId);
+  protected String run(Args args, McpContext context) throws McpToolException {
+    String pageId = McpTool.resolvePageId(args.pageId());
+    PageEdit.Current current = PageEdit.read(client, mapper, pageId, context);
+    PageEdit.checkExpectedVersion(current, args.expectedVersion());
 
-    String heading = (String) args.get("heading");
-    if (heading == null || heading.isBlank()) {
-      throw new McpToolException("'heading' parameter is required");
-    }
-    String content = (String) args.get("content");
-    if (content == null || content.isBlank()) {
-      throw new McpToolException("'content' parameter is required");
-    }
-    int headingLevel = getInt(args, "heading_level", -1);
+    String markdown = StorageToMarkdown.convert(current.body());
+    int level = args.headingLevel() == null ? -1 : args.headingLevel();
+    String updated = replaceSection(markdown, args.heading(), level, args.content());
 
-    // Fetch current page
-    String currentTitle;
-    int currentVersion;
-    String storageBody;
-    try {
-      String current =
-          client.getRaw("/rest/api/content/" + pageId + "?expand=body.storage,version", authHeader);
-      JsonNode parsed = mapper.readTree(current);
-      currentVersion = parsed.path("version").path("number").asInt(0);
-      currentTitle = parsed.path("title").asText("");
-      storageBody = parsed.path("body").path("storage").path("value").asText("");
-    } catch (Exception e) {
-      throw new McpToolException("Failed to fetch current page: " + e.getMessage());
-    }
-
-    // Optimistic locking
-    int expectedVersion = getInt(args, "expected_version", -1);
-    if (expectedVersion > 0 && expectedVersion != currentVersion) {
-      throw new McpToolException(
-          "Page was modified since you last read it (current version: "
-              + currentVersion
-              + ", expected: "
-              + expectedVersion
-              + "). Re-read the page with get_page before updating.");
-    }
-
-    // Convert storage to markdown for section finding
-    String markdown = StorageToMarkdown.convert(storageBody);
-
-    // Find and replace the section
-    String updatedMarkdown = replaceSection(markdown, heading, headingLevel, content);
-
-    // Convert back to storage
-    String updatedStorage = MarkdownToStorage.convert(updatedMarkdown);
-
-    Map<String, Object> version = new HashMap<>();
-    version.put("number", currentVersion + 1);
+    Map<String, Object> version = new LinkedHashMap<>();
+    version.put("number", current.version() + 1);
     version.put("minorEdit", false);
-    version.put("message", "Section '" + heading + "' updated");
+    version.put("message", "Section '" + args.heading() + "' updated");
 
-    Map<String, Object> requestBody = new HashMap<>();
+    Map<String, Object> requestBody = new LinkedHashMap<>();
     requestBody.put("id", pageId);
     requestBody.put("type", "page");
-    requestBody.put("title", currentTitle);
+    requestBody.put("title", current.title());
     requestBody.put("version", version);
     requestBody.put(
-        "body", Map.of("storage", Map.of("value", updatedStorage, "representation", "storage")));
+        "body",
+        Map.of(
+            "storage",
+            Map.of("value", MarkdownToStorage.convert(updated), "representation", "storage")));
 
     try {
-      String jsonBody = mapper.writeValueAsString(requestBody);
-      String rawJson = client.putRaw("/rest/api/content/" + pageId, jsonBody, authHeader);
-
-      String baseUrl = client.getBaseUrl();
+      String rawJson =
+          client.putRaw(
+              "/rest/api/content/" + pageId,
+              mapper.writeValueAsString(requestBody),
+              context.authHeader());
       JsonNode raw = mapper.readTree(rawJson);
       ObjectNode result = mapper.createObjectNode();
-      result.put("message", "Section '" + heading + "' replaced successfully");
-      result.set("page", ResponseTransformer.simplifyPageNode(raw, baseUrl, false));
+      result.put("message", "Section '" + args.heading() + "' replaced successfully");
+      result.set("page", ResponseTransformer.simplifyPageNode(raw, client.getBaseUrl(), false));
       return mapper.writeValueAsString(result);
     } catch (McpToolException e) {
       throw e;
@@ -265,18 +200,5 @@ public class ReplaceSectionTool implements McpTool {
     }
 
     return result.toString();
-  }
-
-  private static int getInt(Map<String, Object> args, String key, int defaultVal) {
-    Object val = args.get(key);
-    if (val instanceof Number n) return n.intValue();
-    if (val instanceof String s) {
-      try {
-        return Integer.parseInt(s);
-      } catch (NumberFormatException e) {
-        return defaultVal;
-      }
-    }
-    return defaultVal;
   }
 }

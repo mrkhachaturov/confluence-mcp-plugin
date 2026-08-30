@@ -1,6 +1,7 @@
 package com.atlassian.mcp.plugin;
 
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
+import com.vladsch.flexmark.util.data.MutableDataSet;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -24,7 +25,17 @@ public final class StorageToMarkdown {
 
   private StorageToMarkdown() {}
 
-  private static final FlexmarkHtmlConverter CONVERTER = FlexmarkHtmlConverter.builder().build();
+  /**
+   * Headings render as ATX (`## Title`) at every level. Flexmark's default writes h1 and h2 as
+   * setext — the title underlined with `===` or `---` — which carries no level marker on the
+   * heading line itself, so anything matching headings by text is blind to exactly the two levels
+   * Confluence pages use most. {@link com.atlassian.mcp.plugin.tools.pages.ReplaceSectionTool} is
+   * one such reader.
+   */
+  private static final FlexmarkHtmlConverter CONVERTER =
+      FlexmarkHtmlConverter.builder(
+              new MutableDataSet().set(FlexmarkHtmlConverter.SETEXT_HEADINGS, false))
+          .build();
 
   /**
    * Convert Confluence storage format content to Markdown.

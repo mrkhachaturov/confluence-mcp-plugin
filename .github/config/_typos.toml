@@ -1,7 +1,7 @@
 [files]
 # Atlassian's published API description, vendored verbatim as reference; it carries
 # misspellings of its own in enum values and descriptions.
-extend-exclude = ["**/*swagger*.json"]
+extend-exclude = ["**/*swagger*.json", "**/confluence-openapi.json"]
 
 [default.extend-words]
 # Java abbreviations the codebase already uses for the types they name.

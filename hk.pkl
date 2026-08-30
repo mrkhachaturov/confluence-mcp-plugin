@@ -3,7 +3,9 @@ import "package://github.com/jdx/hk/releases/download/v1.56.0/hk@1.56.0#/Builtin
 
 local vendored = List(
   ".upstream/**",
-  "target/**"
+  "target/**",
+  // Atlassian's published API description, vendored verbatim as a test fixture.
+  "src/test/resources/confluence-openapi.json"
 )
 
 local lockfiles = List(

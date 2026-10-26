@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.4] - 2026-10-27
+
+Requires Confluence Data Center 10.2.15.
+
+### Fixed
+
+- **The admin page failed with a System Error** (`Unable to find resource 'templates/admin.vm'`) some time after Confluence started, and disabling and re-enabling the plugin did not bring it back. Confluence's bundled collaborative-editing feedback plugin exports a package named `templates`; once Confluence looked up any `templates/` file through this plugin, the OSGi framework sent every later `templates/` lookup to that plugin instead of this one. The template, stylesheet and script now live under `confluence-mcp-plugin/`, a folder no other plugin can export.
+
 ## [1.3.3] - 2026-08-30
 
 Requires Confluence Data Center 10.2.15.

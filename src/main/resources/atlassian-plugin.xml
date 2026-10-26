@@ -115,7 +115,14 @@
         <dependency>com.atlassian.auiplugin:aui-toggle</dependency>
         <dependency>com.atlassian.auiplugin:aui-lozenge</dependency>
         <dependency>com.atlassian.auiplugin:aui-message</dependency>
-        <resource type="download" name="admin.css" location="/css/admin.css"/>
-        <resource type="download" name="admin.js" location="/js/admin.js"/>
+        <!-- Every resource lives under confluence-mcp-plugin/, never a bare css/, js/ or
+             templates/. Under DynamicImport-Package: * a folder name is a package name: once
+             any lookup misses locally, Felix wires that package to whichever bundle exports
+             it and never looks in this JAR for it again. Confluence's bundled
+             collaborative-editing-feedback-plugin exports `templates`, which is how admin.vm
+             went missing. A hyphen is not legal in a package name, so nothing can export this
+             folder. -->
+        <resource type="download" name="admin.css" location="/confluence-mcp-plugin/css/admin.css"/>
+        <resource type="download" name="admin.js" location="/confluence-mcp-plugin/js/admin.js"/>
     </web-resource>
 </atlassian-plugin>

@@ -75,6 +75,10 @@ dispatch.
 
 - `MCP-Session-Id` returned on `initialize`, required on subsequent requests
 - Session lifecycle (creation, lookup, expiry) is owned by the SDK transport
+- Idle sessions are swept every 30 minutes (`McpBootstrap.SESSION_SWEEP_INTERVAL`,
+  set explicitly): one with no open stream and no request since the last sweep is
+  discarded. Without the sweep an `initialize` flood exhausts the heap
+- Keep-alive pings every 30 minutes (SDK default) release streams whose client is gone
 - DELETE closes a session; 404 for expired or unknown sessions
 
 ### Security
@@ -83,14 +87,24 @@ dispatch.
   headers are discrete `<servlet-filter>` modules (see the filter-chain lesson below)
 - **Origin + Host validation** (MUST per spec): handled by the SDK's
   `DefaultServerTransportSecurityValidator` inside the transport, not by a filter.
-  Configured in `McpBootstrap.buildSecurityValidator()` with both an Origin
+  Passed as the transport's `httpHeaderValidator` (`securityValidator` is
+  deprecated) and configured in `McpBootstrap.buildSecurityValidator()` with both an Origin
   allowlist **and** a Host allowlist (deployment FQDN + loopback) — the Host
   allowlist completes the DNS-rebinding defence, which the SDK skips when left
   empty. Invalid Origin → 403; missing or invalid Host → 421
 - **MCP-Protocol-Version** is validated by the plugin's `McpProtocolVersionFilter`
   (weight 560, before the transport): a present-but-unsupported value → 400. The
   SDK transport does **not** validate this header. A missing header is tolerated
-  (spec back-compat)
+  (spec back-compat). The accepted set must equal the transport's
+  `protocolVersions()` — `McpProtocolVersionFilterTest` holds them equal
+- **Unexpected tool exceptions** stay in the log: `McpToolAdapter` returns a generic
+  `Internal error in tool '<name>'` and logs the stack at WARN. A
+  `McpToolException` message is meant for the caller and is returned as is
+- **Transport error bodies** (400/404/415/500 written by the SDK) are the SDK's
+  `McpError` exception serialized by our `ObjectMapper`. A Jackson mix-in on
+  `Throwable` (`McpBootstrap.ThrowableWireView`) drops `stackTrace`, `cause` and
+  `suppressed`; without it every refused request returns a full stack trace.
+  Covered by `McpBootstrapTransportTest` and e2e `t82`/`t83`
 
 ## Tools — 28 Total
 
@@ -371,6 +385,24 @@ ascending weight:
 
 Origin and Host validation are **not** filters — the SDK's
 `DefaultServerTransportSecurityValidator` does them inside the transport.
+
+### Reactor's threads must end with the plugin
+
+Reactor is embedded (`Private-Package`), so every thread it starts belongs to the
+plugin, and one that outlives a disable keeps the old class loader alive. The SDK
+starts its session sweeper on a `Schedulers.newSingle(...)` scheduler and on
+shutdown cancels the sweep without disposing that scheduler, leaving a non-daemon
+thread behind per disable/enable/upgrade. `PluginSchedulers` installs a Reactor
+`Schedulers.Factory` that records those schedulers before the transport is built,
+and `McpBootstrap.close()` disposes them and shuts down Reactor's cached ones.
+`McpBootstrapTransportTest` fails if a sweeper thread survives. Re-check this on
+every SDK bump.
+
+### Plugin version comes from the build
+
+`serverInfo.version` is read from `confluence-mcp-plugin/server.properties`, the
+one resource Maven filters (`${project.version}`). Every other resource is copied
+unfiltered, since the Velocity template uses `${...}` itself.
 
 ### ComponentLocator for filters
 

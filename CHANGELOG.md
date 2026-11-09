@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.5] - 2026-11-09
+
+Requires Confluence Data Center 10.2.19.
+
+### Security
+
+- **MCP Java SDK 2.0.1 → 2.1.0**, which fixes two advisories that affect this plugin:
+  - [GHSA-2hm9-qff2-hrpj](https://github.com/modelcontextprotocol/java-sdk/security/advisories/GHSA-2hm9-qff2-hrpj) (high). The server never discarded a session whose client went away without closing it, so a flood of `initialize` calls could exhaust Confluence's memory. A sweep now runs every 30 minutes and discards each session that has no open stream and has received no request since the previous sweep. A client that comes back after that receives 404 and starts a new session, as the MCP spec describes.
+  - [GHSA-w83x-jw8h-w4rj](https://github.com/modelcontextprotocol/java-sdk/security/advisories/GHSA-w83x-jw8h-w4rj) (medium). Errors raised inside the SDK sent their full chain of causes to the client. Only the error message is sent now.
+  - [GHSA-hp8w-r5wh-cw9q](https://github.com/modelcontextprotocol/java-sdk/security/advisories/GHSA-hp8w-r5wh-cw9q) (high) affects only the SDK's stateless transport. This plugin uses the streamable transport, so it was never exposed.
+- **A tool that failed unexpectedly sent the exception's text to the client**, which could include an internal URL or parser detail. The client now gets `Internal error in tool '<name>'`. The detail is still written to the Confluence log at WARN level. Errors a tool reports on purpose, such as "page not found", are unchanged.
+- **A refused request returned a full Java stack trace.** When the MCP endpoint refuses a request itself (malformed body, wrong content type, internal failure), the SDK writes its internal error object out whole. That body included a stack trace through Confluence's request handling and the plugin's classes, often around 100 KB. The client now gets only the JSON-RPC error code and message. This affected 1.3.4 and earlier as well, and SDK 2.1.0 does not fix it.
+- **Disabling the plugin left a thread running.** The SDK's new session sweeper runs on a thread of its own, which the SDK does not stop when the transport shuts down. One more thread, holding the old plugin version in memory, stayed behind each time the plugin was disabled, enabled or upgraded, and it could hold up Confluence's shutdown. The plugin now stops it.
+- **Built for Confluence 10.2.19.** Upgrading the server from 10.2.15 to 10.2.19 fixes the following. All three are fixes to Confluence itself, not to this plugin:
+  - [CVE-2026-21589](https://confluence.atlassian.com/security/cve-2026-21589-arbitrary-file-access-vulnerability-impacts-multiple-products-1870495748.html) (critical, 9.3): an unauthenticated attacker could read certain files in the web application's root directory. Fixed in 10.2.19.
+  - [Security Bulletin, September 15 2026](https://confluence.atlassian.com/security/security-bulletin-september-15-2026-1822852209.html): 30 vulnerabilities in third-party components (Netty, Bouncy Castle, Apache Tomcat, lodash and others), 6 of them critical. Fixed in 10.2.17.
+  - [Security Bulletin, October 20 2026](https://confluence.atlassian.com/security/security-bulletin-october-20-2026-1874690162.html): 31 vulnerabilities in third-party components (Apache Tomcat, Bouncy Castle, Netty, jackson-databind, Spring and others), 5 of them critical. Fixed in 10.2.19.
+
+### Changed
+
+- **`MCP-Protocol-Version: 2024-11-05` is refused with 400.** SDK 2.1.0 dropped that version from the streamable transport, so the plugin no longer accepts it either. Supported versions are `2025-03-26`, `2025-06-18` and `2025-11-25`.
+- **A POST to `/plugins/servlet/mcp` whose `Content-Type` is not `application/json` is refused with 415.**
+- **The server pings each connected client every 30 minutes** (new in SDK 2.1.0), so a stream whose client has gone away is noticed and released.
+- **`serverInfo.version` reports the plugin's actual version.** It had said `1.2.3` since that release.
+
 ## [1.3.4] - 2026-10-27
 
 Requires Confluence Data Center 10.2.15.

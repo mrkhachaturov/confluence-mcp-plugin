@@ -5,6 +5,7 @@ import com.atlassian.mcp.plugin.tools.ToolRegistry;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.ApplicationProperties;
 import com.atlassian.sal.api.UrlMode;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
@@ -18,8 +19,12 @@ import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.servlet.http.HttpServlet;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
+import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +38,7 @@ public class McpBootstrap {
   private static final Logger log = LoggerFactory.getLogger(McpBootstrap.class);
 
   private static final String SERVER_NAME = "confluence-mcp-plugin";
-  private static final String SERVER_VERSION = "1.2.3";
+  static final String SERVER_VERSION = readServerVersion();
   private static final String SERVER_TITLE = "Confluence MCP Server";
   private static final String SERVER_DESCRIPTION =
       "Connect AI agents to Confluence Data Center — 28 tools across pages, comments, "
@@ -51,6 +56,17 @@ public class McpBootstrap {
           + "- Write tools are hidden when the admin enables read-only mode.";
 
   private static final String LOGO_DATA_URI = ConfluenceIconConstants.CONFLUENCE_LOGO_DATA_URI;
+
+  private static final Duration SESSION_SWEEP_INTERVAL = Duration.ofMinutes(30);
+
+  /**
+   * The transport answers a request it refuses (bad body, unknown session, wrong content type) by
+   * serializing the SDK's {@code McpError}, which is an exception. Unchecked, that body carries the
+   * stack trace through Confluence's filter chain and the cause; this keeps it to the JSON-RPC
+   * error and its message.
+   */
+  @JsonIgnoreProperties({"stackTrace", "cause", "suppressed", "localizedMessage"})
+  private abstract static class ThrowableWireView {}
 
   private final ToolRegistry toolRegistry;
   private final McpPluginConfig config;
@@ -77,16 +93,22 @@ public class McpBootstrap {
       return transport;
     }
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = new ObjectMapper().addMixIn(Throwable.class, ThrowableWireView.class);
     McpJsonMapper jsonMapper = new JacksonMcpJsonMapper(mapper);
     JsonSchemaValidator schemaValidator = new DefaultJsonSchemaValidator(mapper);
 
+    PluginSchedulers.install();
     var t =
         HttpServletStreamableServerTransportProvider.builder()
             .jsonMapper(jsonMapper)
             .mcpEndpoint("/plugins/servlet/mcp")
             .contextExtractor(authExtractor)
-            .securityValidator(buildSecurityValidator())
+            .httpHeaderValidator(buildSecurityValidator())
+            // Reclaims sessions whose client went away without a DELETE. Without it a flood of
+            // initialize calls grows the session map until the heap runs out
+            // (GHSA-2hm9-qff2-hrpj). 30 minutes is the SDK default; it is stated here so the
+            // defence cannot be lost to a default changing.
+            .sessionSweepInterval(SESSION_SWEEP_INTERVAL)
             .build();
 
     var serverInfo =
@@ -203,6 +225,28 @@ public class McpBootstrap {
     }
   }
 
+  /**
+   * The plugin's own version, written into {@code server.properties} by the build. It lives under
+   * {@code confluence-mcp-plugin/} because no bundle can export a package by that name, so the
+   * lookup cannot be answered by another plugin.
+   */
+  private static String readServerVersion() {
+    try (InputStream in =
+        McpBootstrap.class.getResourceAsStream("/confluence-mcp-plugin/server.properties")) {
+      if (in != null) {
+        Properties props = new Properties();
+        props.load(in);
+        String version = props.getProperty("version", "").trim();
+        if (!version.isEmpty() && !version.startsWith("${")) {
+          return version;
+        }
+      }
+    } catch (IOException e) {
+      log.warn("[MCP] could not read server.properties", e);
+    }
+    return "unknown";
+  }
+
   public synchronized void close() {
     if (server != null) {
       try {
@@ -213,5 +257,6 @@ public class McpBootstrap {
       server = null;
     }
     transport = null;
+    PluginSchedulers.shutdown();
   }
 }

@@ -850,6 +850,62 @@ public class McpEndpointE2ETest {
         "valid https redirect_uri must register, body=" + good.body(), 201, good.statusCode());
   }
 
+  @Test
+  public void t81_protocolVersionTheTransportDroppedReturns400() throws Exception {
+    // SDK 2.1.0 no longer negotiates 2024-11-05 on the streamable transport, so a header naming
+    // it describes a session that cannot exist.
+    HttpResponse<String> resp =
+        postMcp(
+            "application/json", "2024-11-05", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}");
+
+    assertEquals("2024-11-05 must be 400, body=" + resp.body(), 400, resp.statusCode());
+  }
+
+  @Test
+  public void t82_nonJsonBodyReturns415WithoutStackTrace() throws Exception {
+    HttpResponse<String> resp =
+        postMcp("text/plain", null, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}");
+
+    assertEquals("non-JSON POST must be 415, body=" + resp.body(), 415, resp.statusCode());
+    assertTransportErrorBodyIsClean(resp);
+  }
+
+  @Test
+  public void t83_malformedBodyReturns400WithoutStackTrace() throws Exception {
+    HttpResponse<String> resp = postMcp("application/json", null, "{not json");
+
+    assertEquals("malformed body must be 400, body=" + resp.body(), 400, resp.statusCode());
+    assertTransportErrorBodyIsClean(resp);
+  }
+
+  /**
+   * The SDK writes a refused request's body by serializing its McpError exception. The caller must
+   * get the JSON-RPC error, not the exception's stack trace or cause.
+   */
+  private static void assertTransportErrorBodyIsClean(HttpResponse<String> resp) throws Exception {
+    JsonNode body = MAPPER.readTree(resp.body());
+    assertTrue("body must carry the JSON-RPC error: " + resp.body(), body.has("jsonRpcError"));
+    for (String leaked : List.of("stackTrace", "cause", "suppressed")) {
+      assertFalse("body leaks '" + leaked + "': " + resp.body(), body.has(leaked));
+    }
+  }
+
+  private static HttpResponse<String> postMcp(
+      String contentType, String protocolVersion, String body) throws Exception {
+    HttpRequest.Builder req =
+        HttpRequest.newBuilder()
+            .uri(URI.create(CONFLUENCE_URL + MCP_ENDPOINT))
+            .header("Authorization", "Bearer " + CONFLUENCE_PAT)
+            .header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", contentType)
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .timeout(REQUEST_TIMEOUT);
+    if (protocolVersion != null) {
+      req.header("MCP-Protocol-Version", protocolVersion);
+    }
+    return HTTP.send(req.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
   private static HttpResponse<String> postRegister(String json) throws Exception {
     HttpRequest req =
         HttpRequest.newBuilder()
@@ -875,7 +931,7 @@ public class McpEndpointE2ETest {
             .endpoint(MCP_ENDPOINT)
             .connectTimeout(Duration.ofSeconds(5))
             .openConnectionOnStartup(false)
-            .httpRequestCustomizer(
+            .addHttpRequestCustomizer(
                 (builder, method, uri, body, ctx) ->
                     builder.header("Authorization", "Bearer " + token))
             .build();

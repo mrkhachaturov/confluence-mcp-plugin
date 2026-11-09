@@ -105,9 +105,13 @@ public final class McpToolAdapter {
           .isError(Boolean.TRUE)
           .build();
     } catch (RuntimeException e) {
+      // An unexpected exception's message is written for whoever reads the log: it can name
+      // internal URLs, classes or parser state. The caller gets the fact of the failure; the
+      // detail stays in the log.
       log.warn("[MCP] tool '{}' threw unexpectedly", tool.name(), e);
       return McpSchema.CallToolResult.builder()
-          .addTextContent("Internal error: " + e.getMessage())
+          .addTextContent(
+              "Internal error in tool '" + tool.name() + "'; the Confluence log has the detail")
           .isError(Boolean.TRUE)
           .build();
     }

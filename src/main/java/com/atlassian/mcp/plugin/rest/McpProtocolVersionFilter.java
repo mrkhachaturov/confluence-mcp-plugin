@@ -11,7 +11,8 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Enforces the MCP spec requirement (2025-06-18 transports §"Protocol Version Header"): a request
@@ -21,19 +22,29 @@ import java.util.Set;
  * <p>The MCP Java SDK transport does NOT validate this header (verified against {@code
  * HttpServletStreamableServerTransportProvider}), so it is enforced here as a discrete filter ahead
  * of the transport. A missing header is tolerated (the spec lets the server assume a default for
- * back-compat); only a <em>present-and-unsupported</em> value is rejected. The supported set is
- * taken from the SDK's own {@link ProtocolVersions} constants so it cannot drift.
+ * back-compat); only a <em>present-and-unsupported</em> value is rejected.
+ *
+ * <p>The supported set is the one the transport negotiates, {@code
+ * HttpServletStreamableServerTransportProvider#protocolVersions()}. The provider only reports it
+ * per instance, so the set is restated here from the SDK's {@link ProtocolVersions} constants and a
+ * unit test holds the two equal.
  */
 @UnrestrictedAccess
 @Named("mcpProtocolVersionFilter")
 public class McpProtocolVersionFilter implements Filter {
 
-  private static final Set<String> SUPPORTED =
-      Set.of(
-          ProtocolVersions.MCP_2024_11_05,
+  static final List<String> SUPPORTED =
+      List.of(
           ProtocolVersions.MCP_2025_03_26,
           ProtocolVersions.MCP_2025_06_18,
           ProtocolVersions.MCP_2025_11_25);
+
+  private static final String REJECTION_BODY =
+      SUPPORTED.stream()
+          .map(v -> "\"" + v + "\"")
+          .collect(
+              Collectors.joining(
+                  ",", "{\"error\":\"Unsupported MCP-Protocol-Version\",\"supported\":[", "]}"));
 
   @Override
   public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain)
@@ -45,11 +56,7 @@ public class McpProtocolVersionFilter implements Filter {
     if (version != null && !version.isBlank() && !SUPPORTED.contains(version.trim())) {
       httpResp.setContentType("application/json");
       httpResp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-      httpResp
-          .getWriter()
-          .write(
-              "{\"error\":\"Unsupported MCP-Protocol-Version\",\"supported\":["
-                  + "\"2024-11-05\",\"2025-03-26\",\"2025-06-18\",\"2025-11-25\"]}");
+      httpResp.getWriter().write(REJECTION_BODY);
       return;
     }
     chain.doFilter(req, resp);

@@ -41,7 +41,8 @@ public class AdminServlet extends HttpServlet {
       return;
     }
     resp.setContentType("text/html;charset=utf-8");
-    renderer.render("templates/admin.vm", resp.getWriter());
+    // Not a bare templates/ path: see the comment on mcp-admin-ui in atlassian-plugin.xml.
+    renderer.render("confluence-mcp-plugin/templates/admin.vm", resp.getWriter());
   }
 
   private URI getUri(HttpServletRequest req) {

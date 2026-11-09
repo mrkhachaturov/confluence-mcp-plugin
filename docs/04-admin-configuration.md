@@ -27,8 +27,8 @@ Jira DC plugins can add admin configuration pages using a combination of:
     <!-- Web resources (JS, CSS) -->
     <web-resource key="admin-resources" name="Admin Resources">
         <dependency>com.atlassian.auiplugin:ajs</dependency>
-        <resource type="download" name="admin.css" location="/css/admin.css"/>
-        <resource type="download" name="admin.js" location="/js/admin.js"/>
+        <resource type="download" name="admin.css" location="/confluence-mcp-plugin/css/admin.css"/>
+        <resource type="download" name="admin.js" location="/confluence-mcp-plugin/js/admin.js"/>
         <context>mcp-admin</context>
     </web-resource>
 
@@ -271,7 +271,7 @@ public class ConfigResource {
 }
 ```
 
-### 5. JavaScript (`src/main/resources/js/admin.js`)
+### 5. JavaScript (`src/main/resources/confluence-mcp-plugin/js/admin.js`)
 
 ```javascript
 (function ($) {
